@@ -14,6 +14,7 @@ const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
   const prompts: string[] = []
   const toasts: string[] = []
   const touched: string[] = []
+  const surfaces: ('terminal' | 'desktop' | 'mobile')[] = []
   const hasDir = () => [...files.keys()].some(k => k.startsWith(`${DIR}/`))
 
   const deny = { deny: 'ENOENT: no such file' }
@@ -60,16 +61,27 @@ const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('tool.register', ($, e) => ({ value: { tool: `mcp__milestone__${e.name}` } }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.surfaces', () => ({ value: [...surfaces] }))
+  on('session.attach', ($, e) => {
+    surfaces.push(e.surface as 'desktop' | 'mobile')
+    return { clientId: e.clientId }
+  })
   on('turn.complete', () => ({ text: '' }))
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 11, 12) })
   settle = () => clock.settle()
 
   const text = (id: number) => files.get(`${DIR}/${id}.md`)?.text ?? ''
-  return { files, prompts, toasts, touched, clock, text }
+  return { files, prompts, toasts, touched, surfaces, clock, text }
 }
 
-const start = async ($: any) => {
-  await $.session.start({ cwd: ROOT })
+/** Starts the session: under the REPL by default, or as a -p / SDK run that draws nowhere yet. */
+const start = async ($: any, interactive = true) => {
+  await $.session.start({ cwd: ROOT, surface: interactive ? 'terminal' : null, isInteractive: interactive })
+  await settle()
+}
+
+const attach = async ($: any, surface: 'desktop' | 'mobile') => {
+  await $.session.attach({ surface, clientId: `${surface}:default` })
   await settle()
 }
 
@@ -254,6 +266,35 @@ describe('sessions and safety', () => {
     const w = world(on, seed)
     await start($)
     expect(w.prompts.at(-1)).toMatch(/^\[milestone\] 恢复 #1\n/)
+  })
+
+  const ACTIVE = { '1.md': ['---', 'id: 1', 'title: 导出', 'status: active', 'parent: ', 'split: tasks', 'created: d', '---', '## Tasks', '- [ ] T1 | a | 验收: b', ''].join('\n') }
+  const reports = (w: { prompts: string[] }) => w.prompts.filter(p => p.startsWith('[milestone] 恢复'))
+
+  test('a -p run with an active goal stays quiet', async ($, on) => {
+    const w = world(on, ACTIVE)
+    await start($, false)
+    expect(await run($, 'ms-status')).toContain('#1 导出')
+    expect(w.prompts).toHaveLength(0)
+  })
+
+  test('a session with no surface at start reports once, when the first one attaches', async ($, on) => {
+    const w = world(on, ACTIVE)
+    await start($, false)
+    expect(reports(w)).toHaveLength(0)
+    await attach($, 'desktop')
+    expect(reports(w)).toHaveLength(1)
+    await attach($, 'mobile')
+    expect(reports(w)).toHaveLength(1)
+  })
+
+  test('a session already drawing at start reports once, and not again on a later attach', async ($, on) => {
+    const w = world(on, ACTIVE)
+    w.surfaces.push('desktop')
+    await start($, false)
+    expect(reports(w)).toHaveLength(1)
+    await attach($, 'mobile')
+    expect(reports(w)).toHaveLength(1)
   })
 
   test('a panel that could not be placed at start points to /ms-panel', async ($, on) => {

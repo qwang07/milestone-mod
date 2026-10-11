@@ -289,10 +289,24 @@ const COMMANDS = [
 
 export const COMMAND_NAMES: readonly string[] = COMMANDS.map(c => c.name)
 
+/** Once per session, where someone can see it: show the panel and, with autoResume, ask for a short report on the active goal. */
+const greet = ($: $, pool: Pool, report: boolean) => {
+  const active = M.activeGoal(pool)
+  if (!active) return
+  void $.ui
+    .open({ id: PANE, title: 'milestone' })
+    .then(opened => {
+      if (!opened.isPlaced) $.ui.toast(`milestone：#${active.id} 执行中，面板未自动显示，用 /ms-panel 打开`, { timeoutMs: 8000 })
+    })
+    .catch(() => undefined)
+  if (report) submit($, prompts.resume(active.id))
+}
+
 // ---------- the module ----------
 
 export const register: Register = (on, options) => {
   const autoResume = options.autoResume !== false
+  let awaitingSurface = false
 
   on('session.start', async ($, e, next) => {
     for (const c of COMMANDS) await $.command.register(c)
@@ -313,15 +327,16 @@ export const register: Register = (on, options) => {
       })().catch(() => undefined)
     })
 
-    const active = M.activeGoal(pool)
-    if (active) {
-      void $.ui
-        .open({ id: PANE, title: 'milestone' })
-        .then(opened => {
-          if (!opened.isPlaced) $.ui.toast(`milestone：#${active.id} 执行中，面板未自动显示，用 /ms-panel 打开`, { timeoutMs: 8000 })
-        })
-        .catch(() => undefined)
-      if (autoResume) submit($, prompts.resume(active.id))
+    // A -p run draws nowhere and nobody reads a report: hold it for the first surface that attaches.
+    if (e.isInteractive || (await $.session.surfaces()).length > 0) greet($, pool, autoResume)
+    else awaitingSurface = true
+    return next(e)
+  })
+
+  on('session.attach', async ($, e, next) => {
+    if (awaitingSurface) {
+      awaitingSurface = false
+      greet($, await refresh($), autoResume)
     }
     return next(e)
   })
