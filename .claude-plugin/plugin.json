@@ -1,0 +1,14 @@
+{
+  "name": "milestone",
+  "version": "0.1.0",
+  "description": "项目内的目标池：记下目标，和 Claude 找方案、拆成子目标或 tasks，逐个执行；侧边面板实时显示进度。",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "autoResume": {
+      "type": "boolean",
+      "title": "开场汇报",
+      "description": "会话开始时如果有执行中的目标，请 Claude 先汇报进度再等待。",
+      "default": true
+    }
+  }
+}
