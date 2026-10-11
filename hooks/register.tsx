@@ -517,7 +517,6 @@ export const register: Register = (on, options) => {
       pool: await read($, poolAtom),
       auto: await read($, autoAtom),
       project: await read($, projectAtom),
-      columns: e.props.bodyColumns,
     }
     return paneTree($.ui.resolve(e), data)
   })

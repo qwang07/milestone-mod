@@ -22,7 +22,10 @@ const MARK_COLOR: Record<Task['mark'], string | undefined> = {
   '-': 'inactive',
 }
 
-export type PaneData = { pool: Pool; auto: Auto; project: string; columns: number }
+/** Longer than any pane; drawn truncated, so it spans exactly the pane's width on every surface. */
+const RULE = '─'.repeat(400)
+
+export type PaneData = { pool: Pool; auto: Auto; project: string }
 
 type Elements = Pick<AllElements[RenderSurface], 'Box' | 'Text'>
 
@@ -47,10 +50,9 @@ const row = ({ Box, Text }: Elements, g: Goal, depth: number, right: string, isA
 
 export const paneTree = (el: Elements, data: PaneData) => {
   const { Box, Text } = el
-  const { pool, auto, project, columns } = data
+  const { pool, auto, project } = data
   const active = activeGoal(pool)
   const shown = treeOrder(pool).filter(x => x.goal.status !== 'dropped')
-  const rule = '─'.repeat(Math.max(8, Math.min(columns, 48)))
 
   return (
     <Box flexDirection="column">
@@ -71,7 +73,7 @@ export const paneTree = (el: Elements, data: PaneData) => {
       ))}
       {active && (
         <Box flexDirection="column" marginTop={1}>
-          <Text dimColor>{rule}</Text>
+          <Text dimColor wrap="truncate-end">{RULE}</Text>
           <Text bold>{`#${active.id} ${active.title}`}</Text>
           {sectionBody(active, SECTION.acceptance) !== '' && (
             <Text dimColor wrap="wrap">{`验收：${sectionBody(active, SECTION.acceptance).split('\n')[0] ?? ''}`}</Text>

@@ -318,6 +318,7 @@ describe('panel', () => {
       const ui = await $.ui.mount({ plugin: 'milestone', surface, component: 'Pane', requestId: 'milestone', props: { title: 'milestone', isFocused: false, bodyColumns: 40, placement: 'dock' } } as any)
       expect(await ui.find({ type: 'Text', text: /▶ #1 CSV 导出/ })).toBeDefined()
       expect(await ui.find({ type: 'Text', text: /T1 字段/ })).toBeDefined()
+      expect(await ui.find({ type: 'Text', text: /^─{400}$/ })).toBeDefined()
       await ui.unmount()
     }
   })
