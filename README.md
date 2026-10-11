@@ -119,7 +119,13 @@ Claude 不直接改 `.goals/` 下的文件，只通过插件注册的工具修�
 
 ## 安装
 
-本仓库就是插件目录。
+在 Claude Code（2.1.275 或更新）里一步安装，终端和桌面版都可用：
+
+```
+/plugin install milestone --marketplace qwang07/milestone-mod
+```
+
+本仓库也是插件目录，clone 下来可以直接加载（和上面的安装二选一，不要同时用）：
 
 - 试用一次：`claude --plugin-dir /path/to/milestone-mod`
 - 长期使用（含桌面版）：把本目录的绝对路径加进 `~/.claude/settings.json` 的 `env.CLAUDE_CODE_PLUGIN_DIRS`。

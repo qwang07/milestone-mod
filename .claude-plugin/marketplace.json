@@ -1,0 +1,16 @@
+{
+  "name": "milestone-mod",
+  "description": "milestone：Claude Code 项目目标池插件",
+  "owner": {
+    "name": "Quan Wang",
+    "email": "github@quan-wang.me",
+    "url": "https://github.com/qwang07"
+  },
+  "plugins": [
+    {
+      "name": "milestone",
+      "source": "./",
+      "description": "项目内的目标池：记下目标，和 Claude 找方案、拆成子目标或 tasks，逐个执行；侧边面板实时显示进度。"
+    }
+  ]
+}
