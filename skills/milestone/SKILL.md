@@ -9,7 +9,7 @@ description: 项目目标池协议。用户提出一个新问题、需求、目�
 
 ## 总则
 
-- **只通过工具修改目标**：`mcp__milestone__create_goal`、`plan_goal`、`start_task`、`finish_task`、`add_task`。不要用 Edit/Write 改 `.goals/` 下的文件，也不要用 TaskCreate/TodoWrite 管理这些目标的 tasks。读文件随意。
+- **只通过工具修改目标**：`mcp__milestone__create_goal`、`plan_goal`、`focus_goal`、`start_task`、`finish_task`、`add_task`。不要用 Edit/Write 改 `.goals/` 下的文件，也不要用 TaskCreate/TodoWrite 管理这些目标的 tasks。读文件随意。
 - 工具拒绝时，把原因原样告诉用户，不要绕过。
 - 一个 task 一轮：每轮只推进一个 task，做完就结束本轮。
 
@@ -30,7 +30,7 @@ description: 项目目标池协议。用户提出一个新问题、需求、目�
 | `/ms-drop <目标>` | 放弃目标 |
 | `/ms-status`、`/ms-panel` | 文字总览、打开面板 |
 
-顺序：目标方案确认后是「已计划」，要先 `/ms-focus <目标>` 设为执行中，再 `/ms-next` 或 `/ms-auto` 执行。只有执行中的目标能开始 task。
+顺序：目标方案确认后是「已计划」，要先设为执行中（用户说「开始 #N」，或发 `/ms-focus <目标>`），再执行 task。只有执行中的目标能开始 task。
 
 ## 新目标
 
@@ -41,7 +41,14 @@ description: 项目目标池协议。用户提出一个新问题、需求、目�
 1. 阅读 `.goals/N.md` 和相关代码。这一阶段**只读**：不调用任何修改文件的工具。
 2. 提出：描述、验收标准（可检验）、方案、已定决策，以及拆解建议——拆成 tasks（每个带标题和验收）还是拆成子目标。说明风险和待确认的问题。
 3. 和用户多轮修改，直到用户**明确确认**。没有确认不调用 `plan_goal`。
-4. 确认后调用 `plan_goal`。拆成 tasks 的，告诉用户用 `/ms-focus N` 设为执行中、再 `/ms-next` 开始；拆成子目标的，告诉用户对子目标用 `/ms-plan`。
+4. 确认后调用 `plan_goal`。拆成 tasks 的，告诉用户说「开始 #N」或用 `/ms-focus N` 设为执行中；拆成子目标的，告诉用户对子目标用 `/ms-plan`。
+
+## 设为执行中（用户说「开始 #N」「切到 #N」之类）
+
+只在用户**明确要求**开始或切换到某个目标时调用 `focus_goal`；不要因为自己觉得该做了就切换，也不要在执行 task 的过程中顺手切换。原来执行中的目标会退回「已计划」，进行中的 auto 会停止。
+
+- 用户要开始做（「开始 #N」「做 #N」）：`focus_goal` 之后，在同一轮按「执行」一节做下一个 task。
+- 用户只要切换（「切到 #N」「先把 #N 设为当前」）：`focus_goal` 之后告诉用户结果，不开始 task。
 
 ## 执行（`[milestone] 执行 #N T<k>`）
 

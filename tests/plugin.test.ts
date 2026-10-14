@@ -194,6 +194,39 @@ describe('commands and tools', () => {
     await planned($)
     expect(await run($, 'ms-status')).toContain('#1 CSV 导出 · 执行中 · 0/3')
   })
+
+  test('focus_goal makes a planned goal active, sends the old one back and stops auto', async ($, on) => {
+    const w = world(on)
+    await start($)
+    await planned($)
+    await run($, 'ms-new', '导入')
+    await call($, 'plan_goal', { id: 2, acceptance: '能导入', approach: '逐行', split: 'tasks', tasks: [{ title: '解析', acceptance: '能读' }] })
+    await run($, 'ms-auto', 'all')
+    const opened = w.opened.length
+    const out = await call($, 'focus_goal', { id: 2 })
+    await settle()
+    expect(out.result).toBe('#2 导入 设为执行中')
+    expect(w.text(2)).toContain('status: active')
+    expect(w.text(1)).toContain('status: planned')
+    expect(w.toasts.at(-1)).toMatch(/切换了执行中的目标/)
+    expect(w.opened.length).toBe(opened + 1)
+    await turnDone($)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] 执行'))).toHaveLength(1)
+  })
+
+  test('focus_goal refuses what /ms-focus refuses', async ($, on) => {
+    const w = world(on, { '9.md': 'not a goal' })
+    await start($)
+    await run($, 'ms-new', '想法')
+    await run($, 'ms-new', '大目标')
+    await call($, 'plan_goal', { id: 2, acceptance: 'a', approach: 'b', split: 'goals', goals: [{ title: '小目标' }] })
+    expect((await call($, 'focus_goal', { id: 1 })).deny).toMatch(/已计划/)
+    expect((await call($, 'focus_goal', { id: 2 })).deny).toMatch(/子目标/)
+    expect((await call($, 'focus_goal', { id: 9 })).deny).toMatch(/无法解析/)
+    expect((await call($, 'focus_goal', { id: 7 })).deny).toBe('没有目标 #7')
+    expect((await call($, 'focus_goal', { id: 0 })).deny).toBe('id 不是有效的目标编号')
+    expect(w.text(1)).toContain('status: idea')
+  })
 })
 
 describe('auto', () => {

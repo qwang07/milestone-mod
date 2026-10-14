@@ -80,7 +80,7 @@ created: 2026-10-11
 | `/ms-status` | 文字版总览 | |
 | `/ms-panel` | 打开面板 | |
 
-`/ms-focus`、`/ms-done`、`/ms-drop` 会停止正在进行的 auto。
+`/ms-focus`、`/ms-done`、`/ms-drop` 会停止正在进行的 auto。设为执行中也可以直接对 Claude 说「开始 #12」或「切到 #12」，效果同 `/ms-focus`，前者还会接着做第一个 task。
 
 ## auto 模式
 
@@ -101,6 +101,7 @@ Claude 不直接改 `.goals/` 下的文件，只通过插件注册的工具修�
 |---|---|
 | `mcp__milestone__create_goal` | 新建一个想法，可以指定父目标 |
 | `mcp__milestone__plan_goal` | 写入描述、验收标准、方案、决策和拆解（tasks 或子目标），状态改为「已计划」；只在你明确确认方案之后调用 |
+| `mcp__milestone__focus_goal` | 设为执行中，效果同 `/ms-focus`；只在你明确说开始或切换到某个目标时调用 |
 | `mcp__milestone__start_task` | 把执行中目标的某个 task 标为 `[~]` |
 | `mcp__milestone__finish_task` | 把 `[~]` 的 task 标为 `[x]`；只在对照验收自检通过后调用 |
 | `mcp__milestone__add_task` | 追加一个 task；只在你同意之后调用 |

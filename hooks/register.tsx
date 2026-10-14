@@ -173,6 +173,16 @@ const runNext = async ($: $, remaining: number): Promise<{ text: string }> => {
   return { text: `开始 #${active.id} T${t.n} ${t.title}` }
 }
 
+/** /ms-focus and focus_goal: make a goal active, stop any auto run, show the panel. */
+const focus = async ($: $, id: number): Promise<M.Outcome> => {
+  const out = await mutate($, pool => M.focusGoal(pool, id))
+  if (!M.refused(out)) {
+    await stopAuto($, '切换了执行中的目标')
+    void $.ui.open({ id: PANE, title: 'milestone' })
+  }
+  return out
+}
+
 // ---------- tool inputs ----------
 
 type Input = Readonly<Record<string, unknown>>
@@ -249,6 +259,12 @@ const TOOLS = [
       },
       required: ['id', 'acceptance', 'approach', 'split'],
     },
+  },
+  {
+    name: 'focus_goal',
+    description:
+      '把一个「已计划」且拆成 tasks 的目标设为执行中；原来执行中的目标退回「已计划」，进行中的 auto 停止。只在用户明确要求开始或切换到某个目标时调用，不要自行切换。',
+    inputSchema: { type: 'object', properties: { id: ID }, required: ['id'] },
   },
   {
     name: 'start_task',
@@ -360,12 +376,7 @@ export const register: Register = on => {
   on('command.run', { command: 'ms-focus' }, async ($, e) => {
     const id = M.parseRef(e.args)
     if (id === undefined) return { text: '请写目标编号，例如 /ms-focus 12' }
-    const out = await mutate($, pool => M.focusGoal(pool, id))
-    if (!M.refused(out)) {
-      await stopAuto($, '切换了执行中的目标')
-      void $.ui.open({ id: PANE, title: 'milestone' })
-    }
-    return reply(out)
+    return reply(await focus($, id))
   }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
 
   on('command.run', { command: 'ms-next' }, async $ => runNext($, 0)).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
@@ -462,6 +473,12 @@ export const register: Register = on => {
         }),
       ),
     )
+  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+
+  on('tool.call', { tool: 'mcp__milestone__focus_goal' }, async ($, e) => {
+    const id = int(e, 'id')
+    if (id === undefined) return { deny: 'id 不是有效的目标编号' }
+    return answer(await focus($, id))
   }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
 
   on('tool.call', { tool: 'mcp__milestone__start_task' }, async ($, e) => {
