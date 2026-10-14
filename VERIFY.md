@@ -22,7 +22,7 @@ claude --plugin-dir /path/to/milestone-mod
 | 5 | `/ms-focus 1` | 面板打开，`▶ #1` 高亮，下方列出 tasks |
 | 6 | `/ms-next` | Claude 只做 T1，`start_task` → 自检 → `finish_task`，汇报后停下；1.md 中 T1 为 `[x]`，面板同步 |
 | 7 | 记下第一次调用工具时是否弹权限确认 | 记录结果；如果弹，记下需要的允许规则 |
-| 8 | 退出会话，在同一目录重新 `claude --plugin-dir …` | Claude 先发一段不超过五句话的汇报，然后停下等待 |
+| 8 | 退出会话，在同一目录重新 `claude --plugin-dir …` | 面板自动打开；Claude 不主动发言，等待输入 |
 | 9 | `/ms-auto 2` | 连续做完两个 task 后停下，弹出通知「次数用完」或「task 已全部结束」 |
 | 10 | `/ms-add 写一个失败的检查`，同意后用 `/ms-next` 执行它，并让验收标准故意无法满足（例如「命令 `false` 退出码为 0」） | 同意前 1.md 不变；执行后 Claude 不调用 `finish_task`；再用 `/ms-auto` 时通知「T<k> 没有完成」，不再提交下一步 |
 | 11 | `/ms-done` | 还有未结束 task 时被拒绝并列出编号；`/ms-skip` 后 `/ms-done` 成功，`status: done` |

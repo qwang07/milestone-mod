@@ -13,6 +13,7 @@ const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
   for (const [name, text] of Object.entries(seed)) files.set(`${DIR}/${name}`, { text, mtimeMs: tick++ })
   const prompts: string[] = []
   const toasts: string[] = []
+  const opened: string[] = []
   const touched: string[] = []
   const surfaces: ('terminal' | 'desktop' | 'mobile')[] = []
   const hasDir = () => [...files.keys()].some(k => k.startsWith(`${DIR}/`))
@@ -57,7 +58,10 @@ const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
     toasts.push(e.text)
     return { value: undefined }
   })
-  on('ui.open', () => ({ value: placed ? { isPlaced: true as const } : { isPlaced: false as const, reason: 'narrow terminal' } }))
+  on('ui.open', ($, e) => {
+    opened.push(e.id)
+    return { value: placed ? { isPlaced: true as const } : { isPlaced: false as const, reason: 'narrow terminal' } }
+  })
   on('command.register', ($, e) => ({ value: { command: e.name } }))
   on('tool.register', ($, e) => ({ value: { tool: `mcp__milestone__${e.name}` } }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -71,7 +75,7 @@ const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
   settle = () => clock.settle()
 
   const text = (id: number) => files.get(`${DIR}/${id}.md`)?.text ?? ''
-  return { files, prompts, toasts, touched, surfaces, clock, text }
+  return { files, prompts, toasts, opened, touched, surfaces, clock, text }
 }
 
 /** Starts the session: under the REPL by default, or as a -p / SDK run that draws nowhere yet. */
@@ -256,7 +260,7 @@ describe('auto', () => {
 })
 
 describe('sessions and safety', () => {
-  test('a new session with an active goal asks for a short report', async ($, on) => {
+  test('a new session with an active goal opens the panel and submits nothing', async ($, on) => {
     const seed = {
       '1.md': [
         '---', 'id: 1', 'title: 导出', 'status: active', 'parent: ', 'split: tasks', 'created: 2026-10-11', '---',
@@ -265,36 +269,39 @@ describe('sessions and safety', () => {
     }
     const w = world(on, seed)
     await start($)
-    expect(w.prompts.at(-1)).toMatch(/^\[milestone\] 恢复 #1\n/)
+    expect(w.opened).toHaveLength(1)
+    expect(w.prompts).toHaveLength(0)
   })
 
   const ACTIVE = { '1.md': ['---', 'id: 1', 'title: 导出', 'status: active', 'parent: ', 'split: tasks', 'created: d', '---', '## Tasks', '- [ ] T1 | a | 验收: b', ''].join('\n') }
-  const reports = (w: { prompts: string[] }) => w.prompts.filter(p => p.startsWith('[milestone] 恢复'))
 
   test('a -p run with an active goal stays quiet', async ($, on) => {
     const w = world(on, ACTIVE)
     await start($, false)
     expect(await run($, 'ms-status')).toContain('#1 导出')
     expect(w.prompts).toHaveLength(0)
+    expect(w.opened).toHaveLength(0)
   })
 
-  test('a session with no surface at start reports once, when the first one attaches', async ($, on) => {
+  test('a session with no surface at start opens the panel once, when the first one attaches', async ($, on) => {
     const w = world(on, ACTIVE)
     await start($, false)
-    expect(reports(w)).toHaveLength(0)
+    expect(w.opened).toHaveLength(0)
     await attach($, 'desktop')
-    expect(reports(w)).toHaveLength(1)
+    expect(w.opened).toHaveLength(1)
     await attach($, 'mobile')
-    expect(reports(w)).toHaveLength(1)
+    expect(w.opened).toHaveLength(1)
+    expect(w.prompts).toHaveLength(0)
   })
 
-  test('a session already drawing at start reports once, and not again on a later attach', async ($, on) => {
+  test('a session already drawing at start opens the panel once, and not again on a later attach', async ($, on) => {
     const w = world(on, ACTIVE)
     w.surfaces.push('desktop')
     await start($, false)
-    expect(reports(w)).toHaveLength(1)
+    expect(w.opened).toHaveLength(1)
     await attach($, 'mobile')
-    expect(reports(w)).toHaveLength(1)
+    expect(w.opened).toHaveLength(1)
+    expect(w.prompts).toHaveLength(0)
   })
 
   test('a panel that could not be placed at start points to /ms-panel', async ($, on) => {
@@ -311,15 +318,6 @@ describe('sessions and safety', () => {
     await start($)
     expect(await run($, 'ms-plan', '')).toBe('请写目标编号，例如 /ms-plan 12')
     expect(await run($, 'ms-focus', '9')).toBe('没有目标 #9')
-  })
-
-  test('autoResume off keeps the session quiet', { options: { autoResume: false } }, async ($, on) => {
-    const seed = {
-      '1.md': ['---', 'id: 1', 'title: 导出', 'status: active', 'parent: ', 'split: tasks', 'created: d', '---', '## Tasks', '- [ ] T1 | a | 验收: b', ''].join('\n'),
-    }
-    const w = world(on, seed)
-    await start($)
-    expect(w.prompts).toHaveLength(0)
   })
 
   test('the plugin only touches the project root and .goals/<digits>.md', async ($, on) => {

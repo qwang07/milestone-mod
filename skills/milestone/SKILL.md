@@ -1,6 +1,6 @@
 ---
 name: milestone
-description: 项目目标池协议。用户提出一个新问题、需求、目标或里程碑（多步骤的事），收到以「[milestone]」开头的提示，或提到 .goals/、/ms- 命令、目标、task 时使用。规定如何记录目标、找方案、拆解、逐个执行 task 和跨会话恢复。
+description: 项目目标池协议。用户提出一个新问题、需求、目标或里程碑（多步骤的事），收到以「[milestone]」开头的提示，或提到 .goals/、/ms- 命令、目标、task 时使用。规定如何记录目标、找方案、拆解、逐个执行 task。
 ---
 
 # milestone 协议
@@ -56,7 +56,3 @@ description: 项目目标池协议。用户提出一个新问题、需求、目�
 ## 追加 task（`[milestone] 追加 task #N：…`）
 
 提出 task 的标题和验收，等用户同意后调用 `add_task`。
-
-## 恢复（`[milestone] 恢复 #N`）
-
-阅读 `.goals/N.md`，用不超过五句话汇报：目标是什么、做到哪一步、下一个 task。然后停下等待指示，不要自行继续。

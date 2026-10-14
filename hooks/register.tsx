@@ -141,8 +141,6 @@ const prompts = {
     `[milestone] 执行 #${id} T${n}\n按 milestone 技能处理：只做这一个 task。先 mcp__milestone__start_task，完成后对照验收自检，通过才 mcp__milestone__finish_task，然后汇报并结束本轮。`,
   add: (id: number, text: string) =>
     `[milestone] 追加 task #${id}：${text}\n按 milestone 技能处理：提出 task 标题与验收，等用户同意后才调用 mcp__milestone__add_task。`,
-  resume: (id: number) =>
-    `[milestone] 恢复 #${id}\n按 milestone 技能处理：阅读 .goals/${id}.md，用不超过五句话汇报目标、进度和下一步，然后停下等待。`,
 }
 
 const parseTarget = (args: string, pool: Pool): number | M.Refusal => {
@@ -289,8 +287,8 @@ const COMMANDS = [
 
 export const COMMAND_NAMES: readonly string[] = COMMANDS.map(c => c.name)
 
-/** Once per session, where someone can see it: show the panel and, with autoResume, ask for a short report on the active goal. */
-const greet = ($: $, pool: Pool, report: boolean) => {
+/** Once per session, where someone can see it: show the panel for the active goal. Never a prompt: it would cut into the conversation. */
+const greet = ($: $, pool: Pool) => {
   const active = M.activeGoal(pool)
   if (!active) return
   void $.ui
@@ -299,13 +297,11 @@ const greet = ($: $, pool: Pool, report: boolean) => {
       if (!opened.isPlaced) $.ui.toast(`milestone：#${active.id} 执行中，面板未自动显示，用 /ms-panel 打开`, { timeoutMs: 8000 })
     })
     .catch(() => undefined)
-  if (report) submit($, prompts.resume(active.id))
 }
 
 // ---------- the module ----------
 
-export const register: Register = (on, options) => {
-  const autoResume = options.autoResume !== false
+export const register: Register = on => {
   let awaitingSurface = false
 
   on('session.start', async ($, e, next) => {
@@ -327,8 +323,8 @@ export const register: Register = (on, options) => {
       })().catch(() => undefined)
     })
 
-    // A -p run draws nowhere and nobody reads a report: hold it for the first surface that attaches.
-    if (e.isInteractive || (await $.session.surfaces()).length > 0) greet($, pool, autoResume)
+    // A -p run draws nowhere: hold the panel for the first surface that attaches.
+    if (e.isInteractive || (await $.session.surfaces()).length > 0) greet($, pool)
     else awaitingSurface = true
     return next(e)
   })
@@ -336,7 +332,7 @@ export const register: Register = (on, options) => {
   on('session.attach', async ($, e, next) => {
     if (awaitingSurface) {
       awaitingSurface = false
-      greet($, await refresh($), autoResume)
+      greet($, await refresh($))
     }
     return next(e)
   })
