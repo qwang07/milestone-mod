@@ -1,6 +1,6 @@
 {
   "name": "milestone",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A goal pool inside the project: record goals, plan them with Claude, split them into sub-goals or tasks and run them one at a time; a side panel shows progress live.",
   "author": {
     "name": "Quan Wang",
