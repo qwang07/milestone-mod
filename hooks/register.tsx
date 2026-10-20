@@ -6,7 +6,7 @@ import type { Auto, Pool } from '../types'
 import * as M from './model'
 import { fileName, idOfFile, isError, parseGoal, serializeGoal } from './model'
 import type { Goal } from './model'
-import { paneTree } from './pane'
+import { TREE, paneTree, treeRows } from './pane'
 
 type $ = EngineInterface
 
@@ -18,6 +18,7 @@ const STEP: Auto = { remaining: 0, pending: null }
 const poolAtom = atom({ plugin: 'milestone', key: 'pool' } as const, EMPTY_POOL)
 const autoAtom = atom({ plugin: 'milestone', key: 'auto' } as const, STEP)
 const projectAtom = atom({ plugin: 'milestone', key: 'project' } as const, '')
+const treeFailedAtom = atom({ plugin: 'milestone', key: 'treeFailed' } as const, false)
 
 // ---------- .goals/ on disk ----------
 // Every path goes through `place`, which only ever answers <project root>/.goals/<digits>.md,
@@ -42,13 +43,13 @@ const goalsDir = async ($: $): Promise<{ dir: string; exists: boolean } | undefi
 }
 
 const place = async ($: $, name: string): Promise<string> => {
-  if (idOfFile(name) === undefined) throw new Error(`milestone 只读写 .goals/<数字>.md，拒绝 ${name}`)
+  if (idOfFile(name) === undefined) throw new Error(`milestone only reads and writes .goals/<digits>.md; refused ${name}`)
   const at = await goalsDir($)
-  if (at === undefined) throw new Error('milestone：.goals/ 不在项目目录内，拒绝读写')
+  if (at === undefined) throw new Error('milestone: .goals/ is not inside the project; refused')
   const path = `${at.dir}/${name}`
   const own = await $.fs.stat(path, { resolve: true }).catch(() => undefined)
   if (own !== undefined && (own.isLink || own.realPath !== path)) {
-    throw new Error(`milestone：${name} 是链接或指向别处，拒绝读写`)
+    throw new Error(`milestone: ${name} is a link or points elsewhere; refused`)
   }
   return path
 }
@@ -70,7 +71,7 @@ const readPool = async ($: $): Promise<Pool> => {
   for (const f of files) {
     const text = await $.fs.read(await place($, f.name)).catch((err: unknown) => err)
     if (typeof text !== 'string') {
-      pool.errors.push({ file: f.name, reason: '读取失败' })
+      pool.errors.push({ file: f.name, reason: 'read failed' })
       continue
     }
     const parsed = parseGoal(text, f.name)
@@ -121,7 +122,7 @@ const mutate = async ($: $, change: (pool: Pool) => M.Outcome | Promise<M.Outcom
 const submit = ($: $, text: string) => {
   $.clock.after(0, () => {
     void $.prompt.submit({ text }).catch((err: unknown) =>
-      $.ui.toast(`milestone：提示没能提交（${err instanceof Error ? err.message : String(err)}）`, { timeoutMs: 8000 }),
+      $.ui.toast(`milestone: could not submit the prompt (${err instanceof Error ? err.message : String(err)})`, { timeoutMs: 8000 }),
     )
   })
 }
@@ -130,26 +131,32 @@ const stopAuto = async ($: $, reason?: string) => {
   const was = await read($, autoAtom)
   await update($, autoAtom, () => STEP)
   if (reason !== undefined && (was.remaining !== 0 || was.pending !== null)) {
-    $.ui.toast(`milestone auto 停下：${reason}`, { timeoutMs: 8000 })
+    $.ui.toast(`milestone auto stopped: ${reason}`, { timeoutMs: 8000 })
   }
 }
 
 const prompts = {
   plan: (id: number) =>
-    `[milestone] 找方案 #${id}\n按 milestone 技能处理：阅读 .goals/${id}.md，提出描述、验收标准、方案和拆解（子目标或 tasks，二选一）。这一阶段只读；用户明确确认后才调用 mcp__milestone__plan_goal。`,
+    `[milestone] plan #${id}\nFollow the milestone skill: read .goals/${id}.md and propose a description, acceptance criteria, an approach and a split (sub-goals or tasks, one of the two). This stage is read-only; call mcp__milestone__plan_goal only after the user clearly confirms.`,
   run: (id: number, n: number) =>
-    `[milestone] 执行 #${id} T${n}\n按 milestone 技能处理：只做这一个 task。先 mcp__milestone__start_task，完成后对照验收自检，通过才 mcp__milestone__finish_task，然后汇报并结束本轮。`,
+    `[milestone] run #${id} T${n}\nFollow the milestone skill: do this one task only. Call mcp__milestone__start_task first; when done, check it against its acceptance, call mcp__milestone__finish_task only if it passes, then report and end the turn.`,
   add: (id: number, text: string) =>
-    `[milestone] 追加 task #${id}：${text}\n按 milestone 技能处理：提出 task 标题与验收，等用户同意后才调用 mcp__milestone__add_task。`,
+    `[milestone] add task #${id}: ${text}\nFollow the milestone skill: propose the task's title and acceptance, and call mcp__milestone__add_task only after the user agrees.`,
 }
 
 const parseTarget = (args: string, pool: Pool): number | M.Refusal => {
   if (args.trim() === '') {
     const a = M.activeGoal(pool)
-    return a ? a.id : { error: '没有执行中的目标，请写目标编号，例如 12 或 #12' }
+    return a ? a.id : { error: 'No active goal; name one by number or part of its title' }
   }
-  return M.parseRef(args) ?? { error: `看不懂目标编号「${args.trim()}」，请写 12 或 #12` }
+  return M.resolveRef(pool, args)
 }
+
+/** The goal a command names, by number or part of its title. */
+const pick = async ($: $, args: string, command: string): Promise<number | M.Refusal> =>
+  args.trim() === ''
+    ? { error: `Name a goal, e.g. /${command} 12 or /${command} part of its title` }
+    : M.resolveRef(await readPool($), args)
 
 const isNumber = (x: number | M.Refusal): x is number => typeof x === 'number'
 
@@ -159,25 +166,28 @@ const reply = (out: M.Outcome, extra = ''): { text: string } => ({
 
 const readyHint = (pool: Pool, id: number): string => {
   const parent = M.parentReady(pool, id)
-  return parent ? `\n#${parent.id} ${parent.title} 的子目标都已结束，可以 /ms-done ${parent.id}` : ''
+  return parent ? `\nAll sub-goals of ${parent.title} have ended; /ms-done ${parent.title} completes it` : ''
 }
+
+const FAILED = { text: 'The command failed; run claude --debug to see why' }
+const TOOL_FAILED = { deny: 'milestone: the tool failed internally; tell the user to run claude --debug to see why' }
 
 const runNext = async ($: $, remaining: number): Promise<{ text: string }> => {
   const pool = await refresh($)
   const active = M.activeGoal(pool)
-  if (!active) return { text: '没有执行中的目标，先 /ms-focus <目标>' }
+  if (!active) return { text: 'No active goal; /ms-focus <goal> first' }
   const t = M.nextTask(active)
-  if (!t) return { text: `#${active.id} 的 task 已全部结束，可以 /ms-done 确认完成` }
+  if (!t) return { text: `#${active.id} has no task left` }
   await update($, autoAtom, () => ({ remaining, pending: { goal: active.id, task: t.n } }))
   submit($, prompts.run(active.id, t.n))
-  return { text: `开始 #${active.id} T${t.n} ${t.title}` }
+  return { text: `Starting #${active.id} T${t.n} ${t.title}` }
 }
 
 /** /ms-focus and focus_goal: make a goal active, stop any auto run, show the panel. */
 const focus = async ($: $, id: number): Promise<M.Outcome> => {
   const out = await mutate($, pool => M.focusGoal(pool, id))
   if (!M.refused(out)) {
-    await stopAuto($, '切换了执行中的目标')
+    await stopAuto($, 'the active goal changed')
     void $.ui.open({ id: PANE, title: 'milestone' })
   }
   return out
@@ -209,20 +219,20 @@ const list = <T,>(e: Input, k: string, pick: (x: Input) => T | undefined): T[] |
 
 const answer = (out: M.Outcome) => (M.refused(out) ? { deny: out.error } : { result: out.message })
 
-const ID = { type: 'integer', minimum: 1, description: '目标编号，例如 12' }
-const TASK_NO = { type: 'integer', minimum: 1, description: 'task 编号，例如 T2 写 2' }
+const ID = { type: 'integer', minimum: 1, description: 'Goal number, e.g. 12' }
+const TASK_NO = { type: 'integer', minimum: 1, description: 'Task number, e.g. 2 for T2' }
 
 const TOOLS = [
   {
     name: 'create_goal',
     description:
-      '在项目目标池里新建一个目标（状态：想法）。用户提到一个新的问题、需求或目标时使用。可以用 parent 挂在已有目标下面。',
+      "Records a new goal in the project's goal pool (status: idea). Use it when the user brings up a new problem, need or goal. `parent` puts it under an existing goal.",
     inputSchema: {
       type: 'object',
       properties: {
-        title: { type: 'string', description: '一行标题' },
-        description: { type: 'string', description: '可选：问题或目标的描述' },
-        parent: { ...ID, description: '可选：父目标编号' },
+        title: { type: 'string', description: 'One-line title' },
+        description: { type: 'string', description: 'Optional: the problem or goal' },
+        parent: { ...ID, description: 'Optional: the parent goal number' },
       },
       required: ['title'],
     },
@@ -230,15 +240,15 @@ const TOOLS = [
   {
     name: 'plan_goal',
     description:
-      '写入一个目标的方案并拆解，状态改为「已计划」。只在用户明确确认方案之后调用。split 二选一：tasks（给出 tasks）或 goals（给出子目标）。',
+      'Writes a goal\'s plan and split, and sets it to planned. Call only after the user clearly confirms the plan. `split` is one of: tasks (give `tasks`) or goals (give `goals`).',
     inputSchema: {
       type: 'object',
       properties: {
         id: ID,
         description: { type: 'string' },
-        acceptance: { type: 'string', description: '验收标准' },
-        approach: { type: 'string', description: '方案' },
-        decisions: { type: 'string', description: '已定决策' },
+        acceptance: { type: 'string', description: 'Acceptance criteria' },
+        approach: { type: 'string', description: 'Approach' },
+        decisions: { type: 'string', description: 'Decisions made' },
         split: { type: 'string', enum: ['tasks', 'goals'] },
         tasks: {
           type: 'array',
@@ -263,22 +273,33 @@ const TOOLS = [
   {
     name: 'focus_goal',
     description:
-      '把一个「已计划」且拆成 tasks 的目标设为执行中；原来执行中的目标退回「已计划」，进行中的 auto 停止。只在用户明确要求开始或切换到某个目标时调用，不要自行切换。',
+      'Makes a planned goal that is split into tasks the active goal; the previously active goal goes back to planned and any auto run stops. Call only when the user clearly asks to start or switch to a goal; never switch on your own.',
     inputSchema: { type: 'object', properties: { id: ID }, required: ['id'] },
   },
   {
     name: 'start_task',
-    description: '把执行中目标的一个 task 标为进行中。开始做这个 task 之前调用。',
+    description: "Marks one of the active goal's tasks in progress. Call it before starting the task.",
     inputSchema: { type: 'object', properties: { id: ID, task: TASK_NO }, required: ['id', 'task'] },
   },
   {
     name: 'finish_task',
-    description: '把进行中的 task 标为完成。只在对照验收标准自检通过之后调用；没通过就不要调用，直接向用户汇报。',
+    description:
+      "Marks the task in progress done. Call only after checking it against its acceptance and passing; if it fails, don't call it and report to the user. Finishing the last task completes the whole goal, so for the last task also check the goal's acceptance criteria first.",
     inputSchema: { type: 'object', properties: { id: ID, task: TASK_NO }, required: ['id', 'task'] },
   },
   {
+    name: 'move_goal',
+    description:
+      'Moves a goal among its siblings (the goals under the same parent): before `before`, or to the end when `before` is left out. Call when the user asks to reorder goals.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: ID, before: { ...ID, description: 'Optional: the sibling to move it in front of' } },
+      required: ['id'],
+    },
+  },
+  {
     name: 'add_task',
-    description: '给一个已拆成 tasks 的目标追加一个 task。只在用户同意追加之后调用。',
+    description: 'Adds a task to a goal split into tasks. Call only after the user agrees to add it.',
     inputSchema: {
       type: 'object',
       properties: { id: ID, title: { type: 'string' }, acceptance: { type: 'string' } },
@@ -288,17 +309,17 @@ const TOOLS = [
 ] as const
 
 const COMMANDS = [
-  { name: 'ms-new', description: '记一个想法', argumentHint: '<标题> [--under <目标>]' },
-  { name: 'ms-plan', description: '请 Claude 为目标找方案并拆解', argumentHint: '<目标>' },
-  { name: 'ms-focus', description: '设为执行中的目标', argumentHint: '<目标>' },
-  { name: 'ms-next', description: '执行当前目标的下一个 task' },
-  { name: 'ms-auto', description: '连续执行 task，失败即停', argumentHint: '[n|all]' },
-  { name: 'ms-skip', description: '跳过当前 task' },
-  { name: 'ms-add', description: '请 Claude 提议追加一个 task', argumentHint: '<描述>' },
-  { name: 'ms-done', description: '确认目标完成', argumentHint: '[目标]' },
-  { name: 'ms-drop', description: '放弃一个目标', argumentHint: '<目标>' },
-  { name: 'ms-status', description: '目标池总览', immediate: true },
-  { name: 'ms-panel', description: '打开 milestone 面板', immediate: true },
+  { name: 'ms-new', description: 'Record an idea', argumentHint: '<title> [--under <goal>]' },
+  { name: 'ms-plan', description: 'Ask Claude to plan and split a goal', argumentHint: '<goal>' },
+  { name: 'ms-focus', description: 'Make a goal the active one', argumentHint: '<goal>' },
+  { name: 'ms-next', description: "Run the active goal's next task" },
+  { name: 'ms-auto', description: 'Run tasks one after another, stopping at the first failure', argumentHint: '[n|all]' },
+  { name: 'ms-skip', description: 'Skip the current task' },
+  { name: 'ms-add', description: 'Ask Claude to propose a new task', argumentHint: '<description>' },
+  { name: 'ms-done', description: 'Complete a goal', argumentHint: '[goal]' },
+  { name: 'ms-drop', description: 'Drop a goal', argumentHint: '<goal>' },
+  { name: 'ms-status', description: 'Overview of the goal pool', immediate: true },
+  { name: 'ms-panel', description: 'Open the milestone panel', immediate: true },
 ] as const
 
 export const COMMAND_NAMES: readonly string[] = COMMANDS.map(c => c.name)
@@ -310,7 +331,7 @@ const greet = ($: $, pool: Pool) => {
   void $.ui
     .open({ id: PANE, title: 'milestone' })
     .then(opened => {
-      if (!opened.isPlaced) $.ui.toast(`milestone：#${active.id} 执行中，面板未自动显示，用 /ms-panel 打开`, { timeoutMs: 8000 })
+      if (!opened.isPlaced) $.ui.toast(`milestone: ${active.title} is active; the panel did not open on its own, use /ms-panel`, { timeoutMs: 8000 })
     })
     .catch(() => undefined)
 }
@@ -356,50 +377,60 @@ export const register: Register = on => {
   // ---- commands ----
 
   on('command.run', { command: 'ms-new' }, async ($, e) => {
-    const m = /^(.*?)(?:\s+--under\s+(\S+))?\s*$/s.exec(e.args)
+    const m = /^(.*?)(?:\s+--under\s+(.+?))?\s*$/s.exec(e.args)
     const title = (m?.[1] ?? '').trim()
     const under = m?.[2]
-    const parent = under === undefined ? undefined : M.parseRef(under)
-    if (under !== undefined && parent === undefined) return { text: `看不懂目标编号「${under}」` }
     const day = await today($)
-    return reply(await mutate($, pool => M.createGoal(pool, { title, parent, today: day })))
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+    return reply(
+      await mutate($, pool => {
+        const parent = under === undefined ? undefined : M.resolveRef(pool, under)
+        if (parent !== undefined && !isNumber(parent)) return parent
+        return M.createGoal(pool, { title, parent, today: day })
+      }),
+    )
+  }).catch(() => FAILED)
 
   on('command.run', { command: 'ms-plan' }, async ($, e) => {
-    const id = M.parseRef(e.args)
-    if (id === undefined) return { text: '请写目标编号，例如 /ms-plan 12' }
+    const id = await pick($, e.args, 'ms-plan')
+    if (!isNumber(id)) return reply(id)
     const out = await mutate($, pool => M.startPlanning(pool, id))
     if (!M.refused(out)) submit($, prompts.plan(id))
     return reply(out)
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  }).catch(() => FAILED)
 
   on('command.run', { command: 'ms-focus' }, async ($, e) => {
-    const id = M.parseRef(e.args)
-    if (id === undefined) return { text: '请写目标编号，例如 /ms-focus 12' }
+    const id = await pick($, e.args, 'ms-focus')
+    if (!isNumber(id)) return reply(id)
     return reply(await focus($, id))
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  }).catch(() => FAILED)
 
-  on('command.run', { command: 'ms-next' }, async $ => runNext($, 0)).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  on('command.run', { command: 'ms-next' }, async $ => runNext($, 0)).catch(() => FAILED)
 
   on('command.run', { command: 'ms-auto' }, async ($, e) => {
     const arg = e.args.trim()
     const n = arg === '' || arg === 'all' ? -1 : /^[1-9][0-9]*$/.test(arg) ? Number(arg) : undefined
-    if (n === undefined) return { text: '/ms-auto 后面写正整数或 all' }
+    if (n === undefined) return { text: '/ms-auto takes a positive integer or all' }
     const out = await runNext($, n)
     void $.ui.open({ id: PANE, title: 'milestone' })
     return out
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  }).catch(() => FAILED)
 
-  on('command.run', { command: 'ms-skip' }, async $ => reply(await mutate($, M.skipTask))).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  on('command.run', { command: 'ms-skip' }, async $ => {
+    const out = await mutate($, M.skipTask)
+    if (M.refused(out)) return reply(out)
+    const ended = out.write.find(g => g.status === 'done')
+    if (ended) await stopAuto($)
+    return reply(out, ended ? readyHint(await read($, poolAtom), ended.id) : '')
+  }).catch(() => FAILED)
 
   on('command.run', { command: 'ms-add' }, async ($, e) => {
     const text = e.args.trim()
-    if (text === '') return { text: '请写要追加的 task，例如 /ms-add 补充单元测试' }
+    if (text === '') return { text: 'Describe the task, e.g. /ms-add add unit tests' }
     const active = M.activeGoal(await refresh($))
-    if (!active) return { text: '没有执行中的目标' }
+    if (!active) return { text: 'No active goal' }
     submit($, prompts.add(active.id, text))
-    return { text: `请 Claude 为 #${active.id} 提议追加 task` }
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+    return { text: `Asked Claude to propose a task for #${active.id}` }
+  }).catch(() => FAILED)
 
   on('command.run', { command: 'ms-done' }, async ($, e) => {
     let target = 0
@@ -412,40 +443,40 @@ export const register: Register = on => {
     if (M.refused(out)) return reply(out)
     if (out.write.some(g => g.status === 'done')) await stopAuto($)
     return reply(out, readyHint(await read($, poolAtom), target))
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  }).catch(() => FAILED)
 
   on('command.run', { command: 'ms-drop' }, async ($, e) => {
-    const id = M.parseRef(e.args)
-    if (id === undefined) return { text: '请写目标编号，例如 /ms-drop 12' }
+    const id = await pick($, e.args, 'ms-drop')
+    if (!isNumber(id)) return reply(id)
     const out = await mutate($, pool => M.dropGoal(pool, id))
-    if (!M.refused(out)) await stopAuto($, `#${id} 已放弃`)
+    if (!M.refused(out)) await stopAuto($, `${out.write[0]?.title ?? 'a goal'} was dropped`)
     return reply(out, M.refused(out) ? '' : readyHint(await read($, poolAtom), id))
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  }).catch(() => FAILED)
 
-  on('command.run', { command: 'ms-status' }, async $ => ({ text: M.statusText(await refresh($)) })).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+  on('command.run', { command: 'ms-status' }, async $ => ({ text: M.statusText(await refresh($)) })).catch(() => FAILED)
 
   on('command.run', { command: 'ms-panel' }, async $ => {
     await refresh($)
     const opened = await $.ui.open({ id: PANE, title: 'milestone' })
-    return { text: opened.isPlaced ? '已打开 milestone 面板' : 'milestone 面板已就绪，界面当前没有位置显示它' }
-  }).catch(() => ({ text: '命令出错，可用 claude --debug 查看原因' }))
+    return { text: opened.isPlaced ? 'Opened the milestone panel' : 'The milestone panel is ready, but the interface has no room to show it now' }
+  }).catch(() => FAILED)
 
   // ---- tools Claude calls ----
 
   on('tool.call', { tool: 'mcp__milestone__create_goal' }, async ($, e) => {
     const title = str(e, 'title')
-    if (title === undefined) return { deny: 'title 必填' }
+    if (title === undefined) return { deny: 'title is required' }
     const parent = e.parent === undefined ? undefined : int(e, 'parent')
-    if (e.parent !== undefined && parent === undefined) return { deny: 'parent 不是有效的目标编号' }
+    if (e.parent !== undefined && parent === undefined) return { deny: 'parent is not a valid goal number' }
     const day = await today($)
     return answer(await mutate($, pool => M.createGoal(pool, { title, parent, description: str(e, 'description'), today: day })))
-  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+  }).catch(() => TOOL_FAILED)
 
   on('tool.call', { tool: 'mcp__milestone__plan_goal' }, async ($, e) => {
     const id = int(e, 'id')
     const split = str(e, 'split')
-    if (id === undefined) return { deny: 'id 不是有效的目标编号' }
-    if (split !== 'tasks' && split !== 'goals') return { deny: 'split 只能是 tasks 或 goals' }
+    if (id === undefined) return { deny: 'id is not a valid goal number' }
+    if (split !== 'tasks' && split !== 'goals') return { deny: 'split must be tasks or goals' }
     const tasks = list(e, 'tasks', x => {
       const title = str(x, 'title')
       const acceptance = str(x, 'acceptance')
@@ -455,8 +486,8 @@ export const register: Register = on => {
       const title = str(x, 'title')
       return title === undefined ? undefined : { title, description: str(x, 'description') }
     })
-    if (e.tasks !== undefined && tasks === undefined) return { deny: 'tasks 每项需要 title 和 acceptance' }
-    if (e.goals !== undefined && goals === undefined) return { deny: 'goals 每项需要 title' }
+    if (e.tasks !== undefined && tasks === undefined) return { deny: 'each task needs a title and an acceptance' }
+    if (e.goals !== undefined && goals === undefined) return { deny: 'each goal needs a title' }
     const day = await today($)
     return answer(
       await mutate($, pool =>
@@ -473,35 +504,45 @@ export const register: Register = on => {
         }),
       ),
     )
-  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+  }).catch(() => TOOL_FAILED)
 
   on('tool.call', { tool: 'mcp__milestone__focus_goal' }, async ($, e) => {
     const id = int(e, 'id')
-    if (id === undefined) return { deny: 'id 不是有效的目标编号' }
+    if (id === undefined) return { deny: 'id is not a valid goal number' }
     return answer(await focus($, id))
-  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+  }).catch(() => TOOL_FAILED)
 
   on('tool.call', { tool: 'mcp__milestone__start_task' }, async ($, e) => {
     const id = int(e, 'id')
     const n = int(e, 'task')
-    if (id === undefined || n === undefined) return { deny: 'id 与 task 都要是正整数' }
+    if (id === undefined || n === undefined) return { deny: 'id and task must both be positive integers' }
     return answer(await mutate($, pool => M.startTask(pool, id, n)))
-  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+  }).catch(() => TOOL_FAILED)
 
   on('tool.call', { tool: 'mcp__milestone__finish_task' }, async ($, e) => {
     const id = int(e, 'id')
     const n = int(e, 'task')
-    if (id === undefined || n === undefined) return { deny: 'id 与 task 都要是正整数' }
-    return answer(await mutate($, pool => M.finishTask(pool, id, n)))
-  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+    if (id === undefined || n === undefined) return { deny: 'id and task must both be positive integers' }
+    const out = await mutate($, pool => M.finishTask(pool, id, n))
+    if (M.refused(out) || !out.write.some(g => g.status === 'done')) return answer(out)
+    return { result: out.message + readyHint(await read($, poolAtom), id) }
+  }).catch(() => TOOL_FAILED)
+
+  on('tool.call', { tool: 'mcp__milestone__move_goal' }, async ($, e) => {
+    const id = int(e, 'id')
+    const before = e.before === undefined ? undefined : int(e, 'before')
+    if (id === undefined) return { deny: 'id is not a valid goal number' }
+    if (e.before !== undefined && before === undefined) return { deny: 'before is not a valid goal number' }
+    return answer(await mutate($, pool => M.moveGoal(pool, id, before)))
+  }).catch(() => TOOL_FAILED)
 
   on('tool.call', { tool: 'mcp__milestone__add_task' }, async ($, e) => {
     const id = int(e, 'id')
     const title = str(e, 'title')
     const acceptance = str(e, 'acceptance')
-    if (id === undefined || title === undefined || acceptance === undefined) return { deny: 'id、title、acceptance 都必填' }
+    if (id === undefined || title === undefined || acceptance === undefined) return { deny: 'id, title and acceptance are all required' }
     return answer(await mutate($, pool => M.addTask(pool, id, title, acceptance)))
-  }).catch(() => ({ deny: 'milestone：工具内部出错，请告诉用户用 claude --debug 查看原因' }))
+  }).catch(() => TOOL_FAILED)
 
   // ---- auto mode ----
 
@@ -515,21 +556,23 @@ export const register: Register = on => {
     if (!isAuto) return next(e)
 
     if (e.reason !== 'answer') {
-      await stopAuto($, e.reason === 'aborted' ? '这一轮被中断' : '这一轮出错')
+      await stopAuto($, e.reason === 'aborted' ? 'the turn was interrupted' : 'the turn failed')
       return next(e)
     }
     const pool = await refresh($)
     const goal = pool.goals.find(g => g.id === id)
     const t = goal?.tasks.find(x => x.n === n)
-    if (!goal || goal.status !== 'active') {
-      await stopAuto($, `#${id} 不再是执行中的目标`)
+    if (goal?.status === 'done') {
+      await stopAuto($, `all tasks of ${goal.title} ended; the goal is done`)
+    } else if (!goal || goal.status !== 'active') {
+      await stopAuto($, `${goal?.title ?? 'the goal'} is no longer the active goal`)
     } else if (t?.mark !== 'x') {
-      await stopAuto($, `T${n} 没有完成`)
+      await stopAuto($, `T${n} was not finished`)
     } else {
       const remaining = auto.remaining < 0 ? -1 : auto.remaining - 1
       const following = M.nextTask(goal)
-      if (!following) await stopAuto($, `#${id} 的 task 已全部结束，请对照验收标准确认后 /ms-done`)
-      else if (remaining === 0) await stopAuto($, '次数用完')
+      if (!following) await stopAuto($, `${goal.title} has no task left`)
+      else if (remaining === 0) await stopAuto($, 'no runs left')
       else {
         await update($, autoAtom, () => ({ remaining, pending: { goal: id, task: following.n } }))
         submit($, prompts.run(id, following.n))
@@ -545,7 +588,24 @@ export const register: Register = on => {
       pool: await read($, poolAtom),
       auto: await read($, autoAtom),
       project: await read($, projectAtom),
+      canDrag: !(await read($, treeFailedAtom)),
     }
-    return paneTree($.ui.resolve(e), data)
+    return paneTree($.ui.resolve(e), e.surface, data)
+  })
+
+  // A drop in the tree: the Client posts { move, before }, checked here like any tool input.
+  on('ui.message', { element: TREE }, async ($, e, next) => {
+    const d = (typeof e.data === 'object' && e.data !== null ? e.data : {}) as Input
+    const id = int(d, 'move')
+    const before = d.before === null ? undefined : int(d, 'before')
+    if (id === undefined || (d.before !== null && before === undefined)) return next(e)
+    const out = await mutate($, pool => M.moveGoal(pool, id, before))
+    if (M.refused(out)) $.ui.toast(`milestone: ${out.error}`, { timeoutMs: 8000 })
+    return { props: { rows: treeRows(await read($, poolAtom)) } }
+  })
+
+  on('ui.fault', { element: TREE }, async ($, e, next) => {
+    await update($, treeFailedAtom, () => true)
+    return next(e)
   })
 }

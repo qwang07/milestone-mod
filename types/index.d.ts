@@ -11,6 +11,8 @@ export type Goal = {
   title: string
   status: Status
   parent: number | null
+  /** Place among its siblings; null until the sibling group is first reordered, then set on every sibling. */
+  order: number | null
   split: Split
   created: string
   sections: Section[]
@@ -26,6 +28,7 @@ export type Auto = { remaining: number; pending: { goal: number; task: number } 
 
 declare module 'claude-code' {
   interface PluginState {
-    milestone: { pool: Pool; auto: Auto; project: string }
+    /** treeFailed: the panel's drag-and-drop tree failed on a surface this session; plain rows are drawn instead. */
+    milestone: { pool: Pool; auto: Auto; project: string; treeFailed: boolean }
   }
 }

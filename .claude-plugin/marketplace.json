@@ -1,6 +1,6 @@
 {
   "name": "milestone-mod",
-  "description": "milestone：Claude Code 项目目标池插件",
+  "description": "milestone: a goal pool plugin for Claude Code",
   "owner": {
     "name": "Quan Wang",
     "email": "github@quan-wang.me",
@@ -10,7 +10,7 @@
     {
       "name": "milestone",
       "source": "./",
-      "description": "项目内的目标池：记下目标，和 Claude 找方案、拆成子目标或 tasks，逐个执行；侧边面板实时显示进度。"
+      "description": "A goal pool inside the project: record goals, plan them with Claude, split them into sub-goals or tasks and run them one at a time; a side panel shows progress live."
     }
   ]
 }

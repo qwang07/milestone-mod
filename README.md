@@ -1,140 +1,145 @@
 # milestone
 
-Claude Code 插件：项目里的目标池，用来代替 GitHub issue / milestone。
+A Claude Code plugin: a goal pool inside the project, in place of GitHub issues / milestones.
 
-记下一个目标，和 Claude 一起找方案、拆成子目标或 tasks，然后一个 task 一个 task 地做。进度在侧边面板里实时可见；换了会话也能接着做。数据就是项目 `.goals/` 下的 Markdown 文件，可以进 git。
+Record a goal, plan it with Claude, split it into sub-goals or tasks, then work through it one task at a time. Progress shows live in a side panel, and a new session picks up where the last one left off. The data is plain Markdown under the project's `.goals/`, so it can go into git.
 
-## 概念
+## Concepts
 
-issue、goal、milestone 在这里是同一种东西：**目标**。
+Issues, goals and milestones are one thing here: a **goal**.
 
-- 目标可以挂在另一个目标下面，层级不限。
-- 拆解时二选一：拆成**子目标**（像 milestone，进度由子目标汇总），或拆成 **tasks**（可以逐个执行）。
-- 同一时刻只有一个目标处于「执行中」。
+- A goal can sit under another goal, to any depth.
+- A goal is split one of two ways: into **sub-goals** (like a milestone, its progress is its sub-goals'), or into **tasks** (run one at a time).
+- At most one goal is active at a time.
 
-## 目标的状态
+## Goal status
 
-| 值 | 显示 | 含义 |
-|---|---|---|
-| `idea` | 想法 | 刚记下，还没有方案 |
-| `planning` | 找方案 | 正在和 Claude 讨论方案 |
-| `planned` | 已计划 | 方案已确认，已拆解 |
-| `active` | 执行中 | 正在执行它的 tasks；全项目至多一个 |
-| `done` | 完成 | |
-| `dropped` | 放弃 | |
+| Value | Meaning |
+|---|---|
+| `idea` | Just recorded, no plan yet |
+| `planning` | Being planned with Claude |
+| `planned` | Plan confirmed and split |
+| `active` | Its tasks are being run; at most one in the project |
+| `done` | |
+| `dropped` | |
 
-## 目标文件
+## Goal files
 
-每个目标一个文件：`.goals/<id>.md`，`id` 是正整数，新目标取现有最大值 + 1。
+One file per goal: `.goals/<id>.md`, where `id` is a positive integer; a new goal takes the highest one plus 1.
 
 ```markdown
 ---
 id: 12
-title: CSV 导出
+title: CSV export
 status: active
 parent: 3
 split: tasks
 created: 2026-10-11
 ---
-## 描述
-## 验收标准
-## 方案
-## 已定决策
+## Description
+## Acceptance
+## Approach
+## Decisions
 ## Tasks
-- [x] T1 | 定义导出字段 | 验收: 字段表经确认
-- [~] T2 | 流式写出 | 验收: 10 万行内存不超 200MB
-- [ ] T3 | 编码与 BOM | 验收: Excel 打开不乱码
+- [x] T1 | Define the export fields | acceptance: field list confirmed
+- [~] T2 | Stream the output | acceptance: 100k rows under 200MB of memory
+- [ ] T3 | Encoding and BOM | acceptance: opens in Excel without garbled text
 ```
 
-- frontmatter 键：`id`、`title`、`status`、`parent`（父目标 id，顶层为空）、`split`（空、`tasks` 或 `goals`）、`created`（`YYYY-MM-DD`）。
-- 正文按上面的顺序含二级标题；`## Tasks` 只在 `split: tasks` 时出现。
-- task 行：`- [<符号>] T<n> | <标题> | 验收: <文本>`。符号 `[ ]` 待办、`[~]` 进行中、`[x]` 完成、`[-]` 跳过；编号从 T1 起连续。
-- 子目标不写在父目标文件里，由子目标的 `parent` 决定。
-- 文件可以手改。解析不了的文件在面板里标出原因，工具和命令拒绝修改它，直到修好。
+- Frontmatter keys: `id`, `title`, `status`, `parent` (the parent goal's id, empty at the top level), `order` (optional: its place among its siblings), `split` (empty, `tasks` or `goals`), `created` (`YYYY-MM-DD`).
+- Siblings show in `order`. A group never reordered has no `order` and shows in creation order; the first reorder sets `order` on every goal in the group, and a goal added later goes last.
+- The body has the level-two headings above, in that order; `## Tasks` appears only with `split: tasks`.
+- A task line: `- [<mark>] T<n> | <title> | acceptance: <text>`. Marks: `[ ]` to do, `[~]` in progress, `[x]` done, `[-]` skipped; numbers run from T1 without gaps.
+- Sub-goals are not listed in the parent's file; a sub-goal's `parent` places it.
+- Files can be edited by hand. A file that cannot be read is flagged in the panel with the reason, and tools and commands refuse to change it until it is fixed.
+- Files written by earlier versions, with Chinese headings (`## 描述`, `## 验收标准`, `## 方案`, `## 已定决策`) and `| 验收: ` in task lines, are read as well; the next write puts them in English.
 
-## 规则
+## Rules
 
-插件在每次修改前检查，违反即拒绝并说明原因：
+The plugin checks every change first, and refuses one that breaks a rule, with the reason:
 
-1. 全项目至多一个目标为 `active`，且它的 `split` 为 `tasks`。
-2. 一个目标里至多一个 task 为 `[~]`。
-3. `split` 在拆解时确定，之后不变；`split: tasks` 的目标不能有子目标。在一个还没拆解的目标下记子目标时，它的 `split` 随即定为 `goals`。
-4. 完成一个目标前：`split: tasks` 的所有 task 都已结束（`[x]` 或 `[-]`）；`split: goals` 的所有子目标都已完成或放弃。
-5. 子目标的 `parent` 在创建时确定，之后不变。
+1. At most one goal in the project is `active`, and its `split` is `tasks`.
+2. At most one task of a goal is `[~]`.
+3. `split` is set when the goal is split and never changes; a `split: tasks` goal cannot have sub-goals. Recording a sub-goal under a goal not yet split sets its `split` to `goals`.
+4. A goal split into tasks completes on its own when its last task ends (`[x]` or `[-]`). A goal split into sub-goals is completed with `/ms-done` once all its sub-goals are done or dropped.
+5. A sub-goal's `parent` is set when it is created and never changes.
 
-## 命令
+## Commands
 
-命令立即生效，不占用 Claude 的回合；标「开启一轮」的会提交一条提示，让 Claude 开始新的一轮。`<目标>` 写 `12` 或 `#12`。
+Commands take effect at once and don't take Claude's turn; those marked "starts a turn" submit a prompt that starts a new turn for Claude. `<goal>` is a number (`12` or `#12`) or part of a goal's title, case ignored (`/ms-done csv export`); a whole title wins over titles that only contain it, and when several goals match the command lists them instead of guessing. Dropped goals are matched by number only.
 
-| 命令 | 作用 | |
+| Command | What it does | |
 |---|---|---|
-| `/ms-new <标题> [--under <目标>]` | 记一个想法 | |
-| `/ms-plan <目标>` | 状态改为「找方案」，请 Claude 提出方案与拆解 | 开启一轮 |
-| `/ms-focus <目标>` | 设为执行中；原来执行中的目标回到「已计划」 | |
-| `/ms-next` | 执行当前目标的下一个 task（优先继续 `[~]` 的那个），做完停下 | 开启一轮 |
-| `/ms-auto [n\|all]` | 连续执行 n 个 task，不写就是全部 | 开启多轮 |
-| `/ms-skip` | 把当前 task 标为跳过 | |
-| `/ms-add <描述>` | 请 Claude 提议追加一个 task，你同意后才写入 | 开启一轮 |
-| `/ms-done [目标]` | 确认完成，不写就是当前执行中的目标 | |
-| `/ms-drop <目标>` | 放弃 | |
-| `/ms-status` | 文字版总览 | |
-| `/ms-panel` | 打开面板 | |
+| `/ms-new <title> [--under <goal>]` | Record an idea | |
+| `/ms-plan <goal>` | Set it to planning and ask Claude for a plan and split | starts a turn |
+| `/ms-focus <goal>` | Make it active; the previously active goal goes back to planned | |
+| `/ms-next` | Run the active goal's next task (the `[~]` one first), then stop | starts a turn |
+| `/ms-auto [n\|all]` | Run n tasks one after another; all when n is left out | starts turns |
+| `/ms-skip` | Mark the current task skipped | |
+| `/ms-add <description>` | Ask Claude to propose a task; it is written only once you agree | starts a turn |
+| `/ms-done [goal]` | Complete a goal split into sub-goals; the active goal when none is named | |
+| `/ms-drop <goal>` | Drop it | |
+| `/ms-status` | Text overview | |
+| `/ms-panel` | Open the panel | |
 
-`/ms-focus`、`/ms-done`、`/ms-drop` 会停止正在进行的 auto。设为执行中也可以直接对 Claude 说「开始 #12」或「切到 #12」，效果同 `/ms-focus`，前者还会接着做第一个 task。
+`/ms-focus`, `/ms-done` and `/ms-drop` stop a running auto. You can also just tell Claude "start #12" or "switch to #12", which does what `/ms-focus` does; the first also goes on to the first task.
 
-## auto 模式
+## auto mode
 
-每一轮只做一个 task。一轮结束时，如果刚才那个 task 变成了 `[x]`，且还有剩余次数和待办 task，就提交下一个。以下任一情况会停下，并弹出通知说明原因：
+Each turn runs one task. When a turn ends with that task `[x]`, runs left and tasks to do, the next one is submitted. It stops, with a notification saying why, when:
 
-- 刚才那个 task 没有变成 `[x]`（自检没过、Claude 停下来问你、你在中途发了别的消息）；
-- 这一轮被中断或出错；
-- 次数用完；
-- 当前目标的 tasks 全部结束。这时 Claude 会对照验收标准汇报，由你用 `/ms-done` 确认。
+- the task did not become `[x]` (its check failed, Claude stopped to ask you, or you sent something else in between);
+- the turn was interrupted or failed;
+- no runs are left;
+- the active goal's tasks have all ended; the goal is then done. Claude checks the goal's acceptance criteria before finishing the last task.
 
-auto 的剩余次数只在当前会话里有效，重开会话后回到逐步模式。
+The number of runs left lasts for the current session; a new session starts back in step mode.
 
-## Claude 用的工具
+## Tools Claude uses
 
-Claude 不直接改 `.goals/` 下的文件，只通过插件注册的工具修改：
+Claude does not edit files under `.goals/` directly, only through the tools the plugin registers:
 
-| 工具 | 作用 |
+| Tool | What it does |
 |---|---|
-| `mcp__milestone__create_goal` | 新建一个想法，可以指定父目标 |
-| `mcp__milestone__plan_goal` | 写入描述、验收标准、方案、决策和拆解（tasks 或子目标），状态改为「已计划」；只在你明确确认方案之后调用 |
-| `mcp__milestone__focus_goal` | 设为执行中，效果同 `/ms-focus`；只在你明确说开始或切换到某个目标时调用 |
-| `mcp__milestone__start_task` | 把执行中目标的某个 task 标为 `[~]` |
-| `mcp__milestone__finish_task` | 把 `[~]` 的 task 标为 `[x]`；只在对照验收自检通过后调用 |
-| `mcp__milestone__add_task` | 追加一个 task；只在你同意之后调用 |
+| `mcp__milestone__create_goal` | Record an idea, optionally under a parent goal |
+| `mcp__milestone__plan_goal` | Write the description, acceptance criteria, approach, decisions and split (tasks or sub-goals), and set it to planned; called only once you clearly confirm the plan |
+| `mcp__milestone__focus_goal` | Make a goal active, as `/ms-focus` does; called only when you clearly say to start or switch to a goal |
+| `mcp__milestone__move_goal` | Move a goal among its siblings, before another or to the end; called when you ask to reorder |
+| `mcp__milestone__start_task` | Mark one of the active goal's tasks `[~]` |
+| `mcp__milestone__finish_task` | Mark the `[~]` task `[x]`; called only after its check passes. The last task completes the goal, so its check covers the goal's acceptance criteria too |
+| `mcp__milestone__add_task` | Add a task; called only once you agree |
 
-插件提交给 Claude 的提示都以 `[milestone]` 开头：`找方案 #N`、`执行 #N T<k>`、`追加 task #N：…`。`milestone` 技能（`skills/milestone/SKILL.md`）规定 Claude 收到每一种提示时怎么做。
+The prompts the plugin submits to Claude all start with `[milestone]`: `plan #N`, `run #N T<k>`, `add task #N: …`. The `milestone` skill (`skills/milestone/SKILL.md`) says what Claude does with each.
 
-## 面板
+## The panel
 
-上半部分是目标树：每行显示状态和进度，执行中的目标高亮，有子目标的目标显示已完成子目标数。下半部分是执行中目标的验收标准和 tasks。面板每 5 秒重读 `.goals/`，同一项目开着几个会话也会同步。面板只显示，不修改。
+The top half is the goal tree, by title alone; goal numbers are not shown. Each row has one label on the right: `idea`, `planning` or `planned` until the goal is active; `k/n` while it is active, k the task in progress or next (so `3/3` means the last task is under way); `done` once it is done. A goal split into sub-goals shows its status; its sub-goals show their own progress. The active goal is highlighted. The bottom half is the active goal's acceptance criteria and tasks. The panel rereads `.goals/` every 5 seconds, so several sessions on one project stay in sync.
 
-会话开始时如果有执行中的目标，插件只请求打开面板，不向 Claude 提交任何提示，所以不会打断对话（包括长时间空闲后重新打开的会话）。进度看面板，或者发 `/ms-status`（不经过模型）；想要 Claude 总结，直接问它。每个会话只打开一次，而且只在有界面时打开：终端交互会话、开始时已有界面的会话在开始时打开；其他会话等第一个界面接入时打开，之后再有界面接入（例如手机远程连接）不重复。无界面会话（`claude -p`、SDK）不打开。Claude Code 只在终端至少 144 列宽时才放置这种自动打开的面板；放不下时会弹出通知，用 `/ms-panel` 手动打开即可，手动打开不受宽度限制。
+The order of goals under the same parent is yours to set: tell Claude ("move CSV export before Import", "put Import last"), or, in the terminal and the desktop app, drag it in the panel. The pointer on a row shows a `⠿` handle; press, drag and the row moves among its siblings as you go, its sub-goals with it; let go and the new order is written to the goal files. A drag stays within its sibling group; moving a goal under another parent is not supported. Other surfaces (the phone app) show the tree without dragging. Apart from that the panel only shows; it changes nothing.
 
-## 安全边界
+When a session starts with an active goal, the plugin only asks for the panel to open and submits no prompt to Claude, so it never cuts into the conversation (a session reopened after a long idle included). Watch progress in the panel, or send `/ms-status` (no model involved); for a summary from Claude, just ask. It opens once per session, and only where there is an interface: an interactive terminal session, or one with an interface at its start, opens it at the start; any other session opens it when its first interface attaches, and not again on a later one (a phone connecting remotely, say). A headless session (`claude -p`, the SDK) never opens it. Claude Code places such a panel on its own only in a terminal at least 144 columns wide; where it doesn't fit, a notification says so, and `/ms-panel` opens it by hand at any width.
 
-插件只读写项目根目录下 `.goals/` 里名为 `<数字>.md` 的文件，路径按解析后的真实路径判定。不联网，不读环境变量，不启动子进程，不读会话记录。
+## Safety
 
-## 安装
+The plugin reads and writes only files named `<digits>.md` in `.goals/` at the project root, judged by their resolved real path. It makes no network calls, reads no environment variables, starts no processes and reads no transcripts.
 
-在 Claude Code（2.1.275 或更新）里一步安装，终端和桌面版都可用：
+## Install
+
+In Claude Code (2.1.275 or later), one step, for the terminal and the desktop app alike:
 
 ```
 /plugin install milestone --marketplace qwang07/milestone-mod
 ```
 
-本仓库也是插件目录，clone 下来可以直接加载（和上面的安装二选一，不要同时用）：
+This repository is also a plugin folder, so a clone loads as it is (use one or the other, not both):
 
-- 试用一次：`claude --plugin-dir /path/to/milestone-mod`
-- 长期使用（含桌面版）：把本目录的绝对路径加进 `~/.claude/settings.json` 的 `env.CLAUDE_CODE_PLUGIN_DIRS`。
+- To try it once: `claude --plugin-dir /path/to/milestone-mod`
+- To keep it (desktop app included): add this folder's absolute path to `env.CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json`.
 
-在要用的项目里，把 [`CLAUDE.md.snippet`](CLAUDE.md.snippet) 的内容追加到项目的 CLAUDE.md。`.goals/` 目录会在记下第一个目标时自动创建。不需要打开 Claude Code 自带的 Task 工具。
+In each project that uses it, append [`CLAUDE.md.snippet`](CLAUDE.md.snippet) to the project's CLAUDE.md. `.goals/` is created when the first goal is recorded. Claude Code's own Task tools are not needed.
 
-## 验证
+## Checks
 
-- `claude plugin validate .`：插件结构与引擎拒绝项。
-- `claude plugin test .`：`tests/*.test.ts` 中的用例。
-- 端到端：在临时项目中按 [`VERIFY.md`](VERIFY.md) 走一遍。
+- `claude plugin validate .`: the plugin's structure and what the engine would refuse.
+- `claude plugin test .`: the cases in `tests/*.test.ts`.
+- End to end: walk through [`VERIFY.md`](VERIFY.md) in a scratch project.
