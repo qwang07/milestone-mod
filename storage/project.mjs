@@ -1,5 +1,5 @@
 import { mkdir, readdir, readFile, lstat, realpath, rename, writeFile, unlink, rmdir } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import * as M from '../core/model.ts';
@@ -14,7 +14,6 @@ export class ProjectStore {
     this.goals = join(root, '.goals');
     this.runtime = join(root, '.milestone-runtime');
     this.projectFile = join(this.goals, 'project.json');
-    this.progressFile = join(this.goals, 'progress.milestone');
     this.queue = Promise.resolve();
   }
 
@@ -104,22 +103,6 @@ export class ProjectStore {
     }
   }
 
-  async publishProgress(pool, run, drafts) {
-    const path = this.progressFile;
-    const progress = {
-      format: 'milestone-progress-v1',
-      projectName: basename(this.root),
-      test: { goals: M.treeOrder(pool).map(row => row.goal), errors: pool.errors,
-        drafts: Object.fromEntries(Object.entries(drafts).map(([id, draft]) => [id, {
-          approach: draft.approach, acceptance: draft.acceptance, tasks: draft.tasks ?? [],
-        }])) },
-      run: run && { goal: run.goal, task: run.task, status: run.status, reason: run.reason,
-        receipts: run.receipts, updates: run.updates },
-    };
-    const text = JSON.stringify(progress) + '\n';
-    if (await this.text(path) !== text) await this.atomic(path, text);
-  }
-
   async loadProject() {
     const text = await this.text(this.projectFile);
     if (text !== null) {
@@ -188,11 +171,7 @@ export class ProjectStore {
   }
 
   async snapshot() {
-    return this.locked(async () => {
-      const pool = this.asPool(await this.loadProject());
-      await this.publishProgress(pool, pool.run, pool.drafts);
-      return pool;
-    });
+    return this.locked(async () => this.asPool(await this.loadProject()));
   }
 
   async change(revision, calculate) {
@@ -205,10 +184,7 @@ export class ProjectStore {
         run: 'run' in change ? change.run : project.run, drafts: 'drafts' in change ? change.drafts : project.drafts };
       if (JSON.stringify(await this.loadProject()) !== JSON.stringify(project)) throw new Error('Conflict: project changed during the operation');
       await this.atomic(this.projectFile, JSON.stringify(next, null, 2) + '\n');
-      const after = this.asPool(next);
-      try { await this.publishProgress(after, after.run, after.drafts); }
-      catch { throw new Error('Project saved. Reopen Milestone to repair the progress file.'); }
-      return { ...after, message: change.message ?? '', ...(change.extra ?? {}) };
+      return { ...this.asPool(next), message: change.message ?? '', ...(change.extra ?? {}) };
     });
   }
 }

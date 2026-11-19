@@ -125,32 +125,35 @@ try {
     assert(!data.isError, JSON.stringify(data));
     return data.structuredContent ?? JSON.parse(data.content.find(c => c.type === 'text').text);
   }
-  const existing = await call('list_goals', { dataset: 'existing' });
-  assert.equal(existing.goals.length, pool.goals.length);
-  assert.deepEqual(existing.errors, []);
-  report.checks.push(`Codex MCP reads ${existing.goals.length} existing goals`);
+  const dataset = installed ? 'project' : 'existing';
+  const listed = await call('list_goals', { dataset });
+  assert.equal(listed.goals.length, (installed ? state : pool).goals.length);
+  assert.deepEqual(listed.errors, []);
+  report.checks.push(`Codex MCP reads ${listed.goals.length} goals from the ${dataset} dataset`);
   if (apps) {
-    const metadata = selected.tools.view_progress_file._meta;
-    assert.deepEqual(metadata['openai/ui'].entrypoints, [{ type: 'file', extensions: ['milestone'] }]);
-    assert(!Object.values(selected.tools).some(tool => tool._meta?.['openai/ui']?.entrypoints?.some(entry => entry.type === 'thread')));
-    assert.equal(metadata.ui.resourceUri, 'ui://milestone/project-file.html');
-    const resource = await rpc('mcpServer/resource/read', { threadId, server: selected.name, uri: metadata.ui.resourceUri });
-    assert.equal(resource.contents[0].mimeType, 'text/html;profile=mcp-app');
-    assert(!resource.contents[0].text.includes('id="next"'));
-    assert(resource.contents[0].text.includes('id="progress"'));
-    assert(!resource.contents[0].text.includes('/* APP_BUNDLE */'));
-    await writeFile(join(scratch, 'mcp-app-resource.html'), resource.contents[0].text);
+    const entrypoints = Object.values(selected.tools).flatMap(tool => tool._meta?.['openai/ui']?.entrypoints ?? []);
+    assert.deepEqual(entrypoints, [{ type: 'thread' }]);
+    const opener = selected.tools.open_app._meta;
+    assert.deepEqual(opener['openai/ui'].entrypoints, [{ type: 'thread' }]);
+    assert.equal(opener.ui.resourceUri, 'ui://milestone/panel.html');
+    const panel = await rpc('mcpServer/resource/read', { threadId, server: selected.name, uri: opener.ui.resourceUri });
+    assert.equal(panel.contents[0].mimeType, 'text/html;profile=mcp-app');
+    assert(!panel.contents[0].text.includes('id="next"'));
+    assert(panel.contents[0].text.includes('id="progress"'));
+    assert(!panel.contents[0].text.includes('/* APP_BUNDLE */'));
+    await writeFile(join(scratch, 'mcp-app-resource.html'), panel.contents[0].text);
     const opened = await call('open_app');
-    assert.equal(opened.existing.goals.length, pool.goals.length);
+    assert.equal(opened.project, await realpath(scratch));
     if (installed) {
-      assert.equal(opened.version, '0.3.0');
+      assert.equal(opened.version, '0.4.0');
       assert.deepEqual(opened.test.errors, []);
       assert(selected.tools.report_task);
       assert(!selected.tools.control_run);
     } else {
-      assert.equal(opened.test.goals.find(g => g.status === 'active').tasks[0].mark, ' ');
+      assert.equal(opened.existing.goals.length, pool.goals.length);
     }
-    report.checks.push('Codex discovers the progress file viewer and reads its bundled MCP Apps resource', 'open_app reads existing goals and the isolated test task');
+    assert.equal(opened.test.goals.find(g => g.id === id && g.status === 'active').tasks[0].mark, ' ');
+    report.checks.push('Codex discovers only the native thread entrypoint and reads its bundled MCP Apps UI', 'open_app accepts empty arguments and reads the selected project');
   }
   if (installed) {
     report.checks.push('Installed local plugin connects through its packaged MCP configuration');

@@ -1,16 +1,13 @@
 ---
 name: milestone
-description: Initialize Milestone in the current project (“初始化 Milestone”), open its progress viewer, and manage project goals and deliverables.
+description: Initialize Milestone in the current project (“初始化 Milestone”), view progress, and manage project goals and deliverables.
 ---
 
 Milestone records WHAT the project must deliver. The conversation manages HOW to deliver it.
-For “初始化 Milestone” or “打开 Milestone”, use the project file viewer.
-Initialization uses the existing project store: an empty project starts with zero goals, and an existing project retains its recorded plan. Create a goal only when the user supplies one.
-Resolve the calling project's working directory. Before opening the viewer, verify the returned file belongs to that project.
-Call list_goals(dataset=project) to ensure the current project's progress file exists.
-Pass its absolute progressFile to mcp__codex_app__open_in_codex with target.type="file" and placement="right" in the calling thread.
-For migrated projects, open .goals/progress.milestone under the current project working directory. If an old connection returns the legacy path, use the migrated file and reconnect the plugin before writing.
-Use this file-opening flow instead of the legacy open_app and open_panel tools. Do not ask the user to locate the file.
+Open the persistent panel from `+` → `More tools…` → `Plugins and MCPs` → `Milestone` in the right panel.
+Use `open_app` when the user wants to see Milestone in the conversation.
+Initialize the current project by calling `list_goals(dataset=project)`.
+Create a goal only when the user supplies one.
 Read list_goals(dataset=project) before updating project state.
 Use project tasks for independently verifiable deliverables, not commands, files to read or implementation steps.
 Use the host's conversation planning tools for implementation steps when available.

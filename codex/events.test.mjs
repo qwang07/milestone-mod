@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFile, readdir, writeFile, rename, realpath } from 'node:fs/promises';
+import { readFile, readdir, writeFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -114,34 +114,33 @@ test('one project write reaches both independent panel event streams', { timeout
   }
 });
 
-test('project file publishes a committed task for two directory watchers', { timeout: 15000 }, async () => {
+test('a pending MCP wait wakes after a separate connection commits a task', { timeout: 10000 }, async () => {
   const fixture = JSON.parse(execFileSync(process.execPath, [join(here, 'verify.mjs'), '--prepare-only'], { encoding: 'utf8' }));
-  const client = new Client({ name: 'progress-file', version: '1' });
-  const { watch } = await import('node:fs/promises');
-  const stop = new AbortController();
-  const dir = join(fixture.scratch, '.goals');
-  const file = join(dir, 'progress.milestone');
-  const read = async () => JSON.parse(await readFile(file, 'utf8'));
-  const mark = data => data.test.goals.find(g => g.id === fixture.fixtureGoal).tasks[0].mark;
+  const [reader, writer] = ['panel-wait', 'external-writer'].map(name => new Client({ name, version: '1' }));
+  const connect = client => client.connect(new StdioClientTransport({
+    command: process.execPath,
+    args: [join(here, 'server.mjs'), '--project', fixture.scratch],
+  }));
+  const snapshot = async () => (await reader.callTool({ name: 'read_panel', arguments: {} })).structuredContent;
   try {
-    await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(here, 'server.mjs'), '--project', fixture.scratch] }));
-    const { tools } = await client.listTools();
-    assert(!tools.some(t => t._meta?.['openai/ui']?.entrypoints?.some(entry => entry.type === 'thread')));
-    const tool = tools.find(t => t.name === 'view_progress_file');
-    assert.equal(tool._meta['openai/ui'].entrypoints[0].type, 'file');
-    const html = await client.readResource({ uri: tool._meta.ui.resourceUri });
-    assert(html.contents[0].text.includes('<body data-sync-mode="project-file">'));
-    assert.equal(mark(await read()), ' ');
-    const { structuredContent } = await client.callTool({ name: 'list_goals', arguments: { dataset: 'project' } });
-    assert.equal(structuredContent.progressFile, await realpath(file));
-    async function changedFile() {
-      for await (const event of watch(dir, { signal: stop.signal })) {
-        if (event.filename === 'progress.milestone') return read();
-      }
-    }
-    const readers = Promise.all([changedFile(), changedFile()]);
-    const outcome = await client.callTool({ name: 'start_task', arguments: { id: fixture.fixtureGoal, task: 1, revision: structuredContent.revision } });
+    await connect(reader);
+    await connect(writer);
+    const before = await snapshot();
+    let finished = false;
+    const wait = reader.callTool({ name: 'wait_panel', arguments: { after: before.changeToken } })
+      .then(response => { finished = true; return response; });
+    await delay(100);
+    assert(!finished, 'An unchanged project leaves the wait pending');
+    const outcome = await writer.callTool({ name: 'start_task', arguments: {
+      id: fixture.fixtureGoal, task: 1, revision: before.test.revision,
+    } });
     assert(!outcome.isError);
-    for (const data of await readers) assert.equal(mark(data), '~');
-  } finally { stop.abort(); await client.close(); }
+    const changed = await wait;
+    assert(!changed.isError);
+    assert.notEqual(changed.structuredContent.changeToken, before.changeToken);
+    const after = await snapshot();
+    assert.equal(after.test.goals.find(goal => goal.id === fixture.fixtureGoal).tasks[0].mark, '~');
+  } finally {
+    await Promise.all([reader.close(), writer.close()]);
+  }
 });

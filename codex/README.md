@@ -3,7 +3,8 @@
 Manage project plans through conversation.
 Use Milestone for project goals, deliverables, acceptance and progress.
 Use the conversation for implementation steps and execution.
-Ask Codex to open Milestone to view the current project’s progress file in the right panel.
+Open Milestone from `+` → `More tools…` → `Plugins and MCPs` → `Milestone` in the right panel.
+Close the Milestone tab using Codex's tab close button.
 
 ## Workflow
 
@@ -42,13 +43,14 @@ Require goal acceptance evidence when completing a goal after cancellation.
 
 | Tool | Purpose |
 |---|---|
-| `open_app` | Open the legacy conversation card |
+| `open_app` | Open Milestone from the right-panel menu or show it in conversation |
 | `list_goals` | Read project plans, drafts and assignments |
 | `manage_goal` | Record, propose, confirm, revise, focus, cancel and reorder project work |
 | `start_task` | Claim an explicit project task |
 | `report_task` | Record pause, obstacle or confirmed reassignment |
 | `finish_task` | Save an accepted deliverable and evidence |
 | `read_panel` | Read display data for the panel |
+| `wait_panel` | Wait for a project change through the MCP connection |
 | `open_panel` | Open the legacy read-only diagnostic view |
 
 ## Panel
@@ -62,21 +64,15 @@ Expand a goal or task to inspect acceptance, plans and evidence.
 Do not count cancelled tasks as completed tasks.
 Keep project paths and execution controls out of the normal view.
 
-Accept host tool-result updates and forwarded resource notifications.
-Associate each model-only modification tool with the panel's resource URI.
-Return a `panelEvent` only after a successful transaction.
-Read `read_panel` once when the panel receives that result through `ontoolresult`.
-Ignore failed results and results from another project.
-Do not generate a change event from `read_panel`.
+Read `read_panel` when the view opens, returns to the foreground, or receives a project change.
+Keep one `wait_panel` request pending while the view is visible.
+Resolve the request when the server detects a project change.
+Renew an idle request without reading project data.
+Accept change events from successful tool results for the same project.
+Cancel the pending request in the view when it is hidden or Codex closes it.
+Expire the server's idle wait after 25 seconds if the host does not forward cancellation.
 Preserve expanded task details during background updates.
-Do not poll or retry reads on a timer.
-Read once when opening the panel or returning to it.
-Read after a forwarded resource event or an explicit refresh request.
-Show an honest disconnected status when the host rejects resource subscriptions.
-Show `等待操作更新` before receiving the first successful tool event when resource subscriptions are unavailable.
-Do not claim live push delivery based on service-side notifications alone.
-Verify desktop forwarding by changing a task with the panel open.
-Check that the panel updates without pressing refresh.
+Show the refresh button when live updates are unavailable.
 
 ## Storage and compatibility
 
@@ -90,16 +86,11 @@ Do not reuse a fixed `--source` / `--scratch` verification package for normal pr
 Existing connections retain their original directory until Codex reconnects them.
 
 Store goals, drafts and execution records in `.goals/project.json`.
-Open the generated `.goals/progress.milestone` for live updates.
 Find original migration inputs in `.milestone-runtime/before-project-json/`.
 Preserve the shared lock, revision checks and transaction recovery.
 Treat assignment identifiers as internal concurrency protection.
 Do not automatically take over legacy queued or running assignments.
 Use explicit reassignment after verifying the previous executor stopped.
-
-The Claude adapter retains its existing execution behavior.
-The shared goal format remains compatible.
-The Claude CLI adapter uses the shared writer for migrated projects.
 
 ## Build and verify
 
@@ -112,6 +103,9 @@ npm test
 npm run build -- --out /absolute/path/to/package
 npm run verify -- --apps
 ```
+
+Build the Codex catalog package with `npm run build -- --marketplace qwang07 --out /absolute/path/to/package`.
+Install that package from its named catalog so the launcher can find the installed server.
 
 Run filesystem event checks outside a sandbox that suppresses `fs.watch`.
 Use `prepare-plugin.mjs` to generate an isolated local marketplace.

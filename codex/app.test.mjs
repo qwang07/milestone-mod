@@ -5,20 +5,40 @@ import vm from 'node:vm';
 
 const source = (await readFile(new URL('./app.mjs', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
 const tick = () => new Promise(resolve => setImmediate(resolve));
-async function fixture() {
+async function fixture(initial = { revision: '1', test: {} }, openingSnapshot) {
   const timers = new Map(), listeners = {}, elements = {}, rendered = [];
-  let id = 0, calls = 0, response = { structuredContent: { revision: '1', test: {} } }, held;
+  const waits = [];
+  let id = 0, calls = 0, response = { structuredContent: initial }, held;
   class App {
     constructor() { this.getHostContext = () => ({}); }
     async connect() {}
-    async request() { throw new Error("Host does not forward subscriptions"); }
     setNotificationHandler(_schema, handler) { this.notify = handler; }
-    async callServerTool({ name }) { assert.equal(name, 'read_panel'); calls++; return held ? await held : response; }
+    async callServerTool({ name, arguments: args }, { signal } = {}) {
+      if (name === 'wait_panel') {
+        return new Promise(resolve => {
+          const abort = () => resolve({ isError: true });
+          signal.addEventListener('abort', abort, { once: true });
+          waits.push({ after: args.after, signal, complete(changeToken) {
+            signal.removeEventListener('abort', abort);
+            resolve({ structuredContent: { changeToken } });
+          } });
+        });
+      }
+      assert.equal(name, 'read_panel');
+      calls++;
+      if (calls === 1 && openingSnapshot) {
+        const first = response;
+        this.ontoolresult({ structuredContent: openingSnapshot });
+        response = { structuredContent: { ...initial, ...openingSnapshot } };
+        return first;
+      }
+      return held ? await held : response;
+    }
   }
   const document = { hidden: false, querySelector(selector) { return elements[selector] ??= { hidden: true, textContent: '', addEventListener(event, handler) { this[event] = handler; } }; }, addEventListener(event, handler) { listeners[event] = handler; } };
-  const context = vm.createContext({ App, document, window: { addEventListener(event, handler) { listeners[event] = handler; } }, EmptyResultSchema: {}, ResourceUpdatedNotificationSchema: {}, applyDocumentTheme() {}, applyHostStyleVariables() {}, renderPanel(_document, data) { rendered.push(data.revision); }, setTimeout(fn, delay) { timers.set(++id, { fn, delay }); return id; }, clearTimeout(key) { timers.delete(key); } });
+  const context = vm.createContext({ App, AbortController, document, window: { addEventListener(event, handler) { listeners[event] = handler; } }, ResourceUpdatedNotificationSchema: {}, applyDocumentTheme() {}, applyHostStyleVariables() {}, renderPanel(_document, data) { rendered.push(data.revision); }, setTimeout(fn, delay) { timers.set(++id, { fn, delay }); return id; }, clearTimeout(key) { timers.delete(key); } });
   await vm.runInContext(`(async () => {${source}\nreturn app;})()`, context).then(app => { context.app = app; });
-  return { document, listeners, elements, rendered, timers, app: context.app, get calls() { return calls; }, set response(value) { response = value; }, hold() { held = new Promise(resolve => { this.release = value => { held = null; resolve(value); }; }); }, async next() { const [key, timer] = [...timers][0]; timers.delete(key); timer.fn(); await tick(); } };
+  return { document, listeners, elements, rendered, timers, waits, app: context.app, get calls() { return calls; }, set response(value) { response = value; }, hold() { held = new Promise(resolve => { this.release = value => { held = null; resolve(value); }; }); } };
 }
 test('panel stays idle without push support and reads only on explicit events', async () => {
   const f = await fixture();
@@ -77,4 +97,32 @@ test('mutation arriving during an older read invalidates it and reads committed 
   assert.equal(f.calls, before + 1);
   assert(!f.rendered.includes('old'));
   assert.equal(f.rendered.at(-1), 'committed');
+});
+
+test('the panel renews an idle wait without reading, reloads on a change and cancels on teardown', async () => {
+  const f = await fixture({ revision: '1', test: {}, changeToken: 'first' });
+  assert.equal(f.waits[0].after, 'first');
+  f.waits[0].complete('first'); await tick();
+  assert.deepEqual(f.rendered, ['1']);
+  assert.equal(f.calls, 1);
+  assert.equal(f.waits[1].after, 'first');
+  f.response = { structuredContent: { revision: '2', test: {}, changeToken: 'second' } };
+  f.waits[1].complete('second'); await tick();
+  assert.deepEqual(f.rendered, ['1', '2']);
+  assert.equal(f.elements['#status'].textContent, '实时同步');
+  assert.equal(f.waits[2].after, 'second');
+  await f.app.onteardown();
+  assert.equal(f.waits[2].signal.aborted, true);
+  await tick();
+  assert.equal(f.calls, 2);
+  assert.equal(f.waits.length, 3);
+  assert.equal(f.timers.size, 0);
+});
+
+test('the opening snapshot keeps the wait token from an in-flight read', async () => {
+  const f = await fixture({ revision: 'older', test: {}, changeToken: 'first' }, { revision: 'opened', test: {} });
+  await tick();
+  assert.deepEqual(f.rendered, ['opened']);
+  assert.equal(f.waits[0].after, 'first');
+  await f.app.onteardown();
 });

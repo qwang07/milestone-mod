@@ -198,7 +198,7 @@ test('migration replays a pending legacy transaction and keeps original bytes', 
   assert.equal(state.drafts[1].id, 'pending');
   assert.deepEqual(state.goals, [M.parseGoal(markdown, '1.md')]);
   assert.equal(await readFile(join(store.runtime, 'before-project-json', '1.md'), 'utf8'), markdown);
-  assert.deepEqual((await readdir(store.goals)).sort(), ['progress.milestone', 'project.json']);
+  assert.deepEqual(await readdir(store.goals), ['project.json']);
   assert.deepEqual(await store.snapshot(), state);
   const linked = await realpath(await mkdtemp(join(tmpdir(), 'milestone-linked-')));
   await symlink(store.runtime, join(linked, '.milestone-runtime'));

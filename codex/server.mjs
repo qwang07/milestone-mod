@@ -15,7 +15,10 @@ import * as M from '../core/model.ts';
 import { panel } from './panel.mjs';
 import { ProjectStore } from '../storage/project.mjs';
 
-const { values } = parseArgs({ options: { source: { type: 'string' }, scratch: { type: 'string' }, project: { type: 'string' } } });
+const { values } = parseArgs({
+  args: process.argv.slice(2),
+  options: { source: { type: 'string' }, scratch: { type: 'string' }, project: { type: 'string' } },
+});
 if (!values.project && (!values.source || !values.scratch)) throw new Error('Use --project, or --source and --scratch for isolated verification');
 const scratch = await realpath(values.project ?? values.scratch);
 const source = values.project ? null : await realpath(values.source);
@@ -62,7 +65,7 @@ const guarded = fn => async args => {
   try { return result(await fn(args)); }
   catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
 };
-const server = new McpServer({ name: 'milestone-codex-probe', version: '0.3.0' });
+const server = new McpServer({ name: 'milestone-codex-probe', version: '0.4.0' });
 const APP_URI = 'ui://milestone/panel.html';
 const STATE_URI = 'milestone://panel/state';
 let appHtml;
@@ -104,21 +107,8 @@ async function panelState() {
   const rows = pool => M.treeOrder(pool).filter(x => x.goal.status !== 'dropped').map(({ goal, depth }) =>
     ({ id: goal.id, status: goal.status, title: goal.title, depth, label: M.labelOf(goal) }));
   const revision = createHash('sha256').update(JSON.stringify([existing.revision, test.revision, test.run, test.drafts])).digest('hex');
-  return { version: '0.3.0', source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
+  return { version: '0.4.0', source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
 }
-const FILE_URI = 'ui://milestone/project-file.html';
-server.registerResource('milestone-file-viewer', FILE_URI, { mimeType: 'text/html;profile=mcp-app' }, async () => ({
-  contents: [{ uri: FILE_URI, mimeType: 'text/html;profile=mcp-app',
-    text: appHtml.replace('data-sync-mode="tool-result-events"', 'data-sync-mode="project-file"') }],
-}));
-server.registerTool('view_progress_file', {
-  title: 'Milestone',
-  description: 'View a Milestone project progress file.',
-  inputSchema: { file: z.object({ name: z.string(), resourceUri: z.string() }) },
-  annotations: { readOnlyHint: true },
-  _meta: { ui: { resourceUri: FILE_URI, visibility: ['app'] },
-    'openai/ui': { entrypoints: [{ type: 'file', extensions: ['milestone'] }] } },
-}, async () => ({ content: [] }));
 server.registerResource('milestone-state', STATE_URI, { mimeType: 'application/json' }, async () => ({
   contents: [{ uri: STATE_URI, mimeType: 'application/json', text: JSON.stringify(await panelState()) }],
 }));
@@ -136,16 +126,24 @@ server.server.setRequestHandler(UnsubscribeRequestSchema, async ({ params }) => 
 });
 let changeTimer;
 let previousRevision;
+let changeToken = randomUUID();
+const waitingPanels = new Set();
+function wakePanels() {
+  changeToken = randomUUID();
+  for (const finish of waitingPanels) finish();
+}
 async function notifyChanged() {
   try {
     const data = await panelState();
     const revision = data.revision;
     if (revision === previousRevision) return;
     previousRevision = revision;
+    wakePanels();
     for (const client of eventClients) client.write('data: changed\n\n');
     if (subscribed) await server.server.sendResourceUpdated({ uri: STATE_URI });
   } catch {
     // Let the panel read and display the error, including a removed goals directory.
+    wakePanels();
     if (subscribed) await server.server.sendResourceUpdated({ uri: STATE_URI }).catch(() => {});
   }
 }
@@ -158,20 +156,47 @@ for (const watcher of watchers) watcher.on('error', () => { void notifyChanged()
 await notifyChanged();
 server.registerTool('open_app', {
   title: 'Milestone',
-  description: 'Open the legacy inline Milestone card. For an ordinary request to open Milestone, use list_goals(dataset=project) and open its progressFile in the Codex file viewer. View project goals, deliverables and progress. All changes happen through conversation. The reference project is read-only when present.',
+  description: 'Show Milestone goals, deliverables and progress. Open Milestone from the side panel for a persistent view, or call this tool for an inline view. All changes happen through conversation.',
   inputSchema: {}, annotations: { readOnlyHint: true },
-  _meta: { ui: { resourceUri: APP_URI } },
+  _meta: {
+    ui: { resourceUri: APP_URI },
+    'openai/ui': { entrypoints: [{ type: 'thread' }] },
+  },
 }, guarded(panelState));
 server.registerTool('read_panel', {
   description: 'Read live goal data for the Milestone panel.',
   inputSchema: {}, annotations: { readOnlyHint: true },
   _meta: { ui: { visibility: ['app'] } },
-}, guarded(async () => ({ ...await panelState(), eventUrl: (await panelEvents())?.href })));
+}, guarded(async () => {
+  const after = changeToken;
+  return { ...await panelState(), changeToken: after, eventUrl: (await panelEvents())?.href };
+}));
+server.registerTool('wait_panel', {
+  description: 'Wait for a project change or renew the wait without reading project data.',
+  inputSchema: { after: z.uuid() }, annotations: { readOnlyHint: true },
+  _meta: { ui: { visibility: ['app'] } },
+}, async ({ after }, { signal }) => {
+  if (after === changeToken && !signal.aborted) {
+    await new Promise(resolve => {
+      function finish() {
+        clearTimeout(timeout);
+        waitingPanels.delete(finish);
+        signal.removeEventListener('abort', finish);
+        resolve();
+      }
+      // Return before Codex's tool timeout so the view can renew an idle wait.
+      const timeout = setTimeout(finish, 25000);
+      waitingPanels.add(finish);
+      signal.addEventListener('abort', finish, { once: true });
+    });
+  }
+  return result({ changeToken });
+});
 server.registerTool('list_goals', {
   description: 'Read the current project goals, content revision and execution state with dataset=project. The optional existing reference project is read-only. test is a legacy alias for project.',
   inputSchema: { dataset: z.enum(['project', 'existing', 'test']) },
   annotations: { readOnlyHint: true },
-}, guarded(async ({ dataset }) => ({ dataset, ...(dataset === 'project' ? { progressFile: store.progressFile } : {}), ...publicPool(dataset === 'existing' && source ? await readPool(source) : await store.snapshot()) })));
+}, guarded(async ({ dataset }) => ({ dataset, ...publicPool(dataset === 'existing' && source ? await readPool(source) : await store.snapshot()) })));
 
 const revisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const positive = z.number().int().positive();

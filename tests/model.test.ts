@@ -1,7 +1,8 @@
-import { describe, expect, test } from 'claude-code/testing'
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
 
-import * as M from '../core/model'
-import type { Goal, Pool } from '../types'
+import * as M from '../core/model.ts'
+import type { Goal, Pool } from '../core/model.ts'
 
 const goal = (over: Partial<Goal> & { id: number }): Goal => ({
   title: `目标 ${over.id}`,
@@ -46,13 +47,13 @@ describe('goal files', () => {
       tasks: tasks('x~ '),
     })
     const text = M.serializeGoal(g)
-    expect(text).toContain('- [~] T2 | 做第 2 步 | acceptance: 第 2 步可检验')
-    expect(M.parseGoal(text, '12.md')).toEqual(g)
+    assert.ok(text.includes('- [~] T2 | 做第 2 步 | acceptance: 第 2 步可检验'))
+    assert.deepEqual(M.parseGoal(text, '12.md'), g)
   })
 
-  test('the file layout matches the README', () => {
+  test('a legacy task goal has the expected Markdown layout', () => {
     const text = M.serializeGoal(goal({ id: 1, split: 'tasks', tasks: tasks(' ') }))
-    expect(text).toBe(
+    assert.equal(text,
       [
         '---',
         'id: 1',
@@ -77,7 +78,7 @@ describe('goal files', () => {
     const text = M.serializeGoal(goal({ id: 2 })) + '## 备注\n手写的内容\n'
     const parsed = M.parseGoal(text, '2.md')
     if (M.isError(parsed)) throw new Error(parsed.reason)
-    expect(M.serializeGoal(parsed)).toContain('## 备注\n手写的内容')
+    assert.ok(M.serializeGoal(parsed).includes('## 备注\n手写的内容'))
   })
 
   test('broken files are reported with a reason', () => {
@@ -92,35 +93,35 @@ describe('goal files', () => {
     ]
     for (const [file, text, reason] of cases) {
       const r = M.parseGoal(text, file)
-      expect(M.isError(r)).toBe(true)
-      if (M.isError(r)) expect(r.reason).toMatch(reason)
+      assert.equal(M.isError(r), true)
+      if (M.isError(r)) assert.match(r.reason, reason)
     }
   })
 
   test('refs accept 12 and #12 only', () => {
-    expect(M.parseRef('12')).toBe(12)
-    expect(M.parseRef(' #7 ')).toBe(7)
-    expect(M.parseRef('0')).toBeUndefined()
-    expect(M.parseRef('abc')).toBeUndefined()
+    assert.equal(M.parseRef('12'), 12)
+    assert.equal(M.parseRef(' #7 '), 7)
+    assert.equal(M.parseRef('0'), undefined)
+    assert.equal(M.parseRef('abc'), undefined)
   })
 })
 
 describe('rules', () => {
   test('new goals take the next id and start as ideas', () => {
     const c = ok(M.createGoal(pool(goal({ id: 3 }), goal({ id: 9 })), { title: '性能问题', today: '2026-10-11' }))
-    expect(c.write[0]).toMatchObject({ id: 10, status: 'idea', parent: null })
+    assert.partialDeepStrictEqual(c.write[0], { id: 10, status: 'idea', parent: null })
   })
 
   test('a child under an unsplit goal makes the parent split into goals', () => {
     const c = ok(M.createGoal(pool(goal({ id: 1 })), { title: '子', parent: 1, today: 'd' }))
-    expect(c.write.map(g => [g.id, g.split, g.parent])).toEqual([
+    assert.deepEqual(c.write.map(g => [g.id, g.split, g.parent]), [
       [2, '', 1],
       [1, 'goals', null],
     ])
   })
 
   test('no children under a goal split into tasks', () => {
-    expect(no(M.createGoal(pool(goal({ id: 1, split: 'tasks' })), { title: '子', parent: 1, today: 'd' }))).toMatch(/tasks/)
+    assert.match(no(M.createGoal(pool(goal({ id: 1, split: 'tasks' })), { title: '子', parent: 1, today: 'd' })), /tasks/)
   })
 
   test('planning into tasks writes sections and numbered tasks', () => {
@@ -138,9 +139,9 @@ describe('rules', () => {
       }),
     )
     const g = c.write[0]
-    expect(g?.status).toBe('planned')
-    expect(g?.tasks.map(t => `${t.mark}T${t.n}`)).toEqual([' T1', ' T2'])
-    expect(g && M.sectionBody(g, 'Acceptance')).toBe('能导出')
+    assert.equal(g?.status, 'planned')
+    assert.deepEqual(g?.tasks.map(t => `${t.mark}T${t.n}`), [' T1', ' T2'])
+    assert.equal(g && M.sectionBody(g, 'Acceptance'), '能导出')
   })
 
   test('planning into goals creates idea children with consecutive ids', () => {
@@ -154,7 +155,7 @@ describe('rules', () => {
         today: 'd',
       }),
     )
-    expect(c.write.map(g => [g.id, g.parent, g.status])).toEqual([
+    assert.deepEqual(c.write.map(g => [g.id, g.parent, g.status]), [
       [4, null, 'planned'],
       [7, 4, 'idea'],
       [8, 4, 'idea'],
@@ -163,75 +164,74 @@ describe('rules', () => {
 
   test('split is either tasks or goals, never both', () => {
     const p = pool(goal({ id: 1, split: 'goals' }), goal({ id: 2, parent: 1 }))
-    expect(
-      no(M.planGoal(p, { id: 1, acceptance: 'a', approach: 'b', split: 'tasks', tasks: [{ title: 't', acceptance: 'a' }], today: 'd' })),
-    ).toMatch(/sub-goals/)
+    const result = M.planGoal(p, { id: 1, acceptance: 'a', approach: 'b', split: 'tasks', tasks: [{ title: 't', acceptance: 'a' }], today: 'd' })
+    assert.match(no(result), /sub-goals/)
   })
 
   test('only planned task goals can be focused; the old active goes back to planned', () => {
     const p = pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks(' ') }), goal({ id: 2, status: 'planned', split: 'tasks', tasks: tasks(' ') }))
     const c = ok(M.focusGoal(p, 2))
-    expect(c.write.map(g => [g.id, g.status])).toEqual([
+    assert.deepEqual(c.write.map(g => [g.id, g.status]), [
       [2, 'active'],
       [1, 'planned'],
     ])
-    expect(no(M.focusGoal(pool(goal({ id: 3, status: 'planned', split: 'goals' })), 3))).toMatch(/sub-goals/)
-    expect(no(M.focusGoal(pool(goal({ id: 3 })), 3))).toMatch(/planned/)
+    assert.match(no(M.focusGoal(pool(goal({ id: 3, status: 'planned', split: 'goals' })), 3)), /sub-goals/)
+    assert.match(no(M.focusGoal(pool(goal({ id: 3 })), 3)), /planned/)
   })
 
   test('one task in progress at a time', () => {
     const p = pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('~ ') }))
-    expect(no(M.startTask(p, 1, 2))).toMatch(/T1 is still in progress/)
+    assert.match(no(M.startTask(p, 1, 2)), /T1 is still in progress/)
   })
 
   test('a task finishes only from in progress', () => {
     const p = pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks(' ~') }))
-    expect(no(M.finishTask(p, 1, 1))).toMatch(/not in progress/)
+    assert.match(no(M.finishTask(p, 1, 1)), /not in progress/)
     const c = ok(M.finishTask(p, 1, 2))
-    expect(c.write[0]?.tasks.map(t => t.mark).join('')).toBe(' x')
+    assert.equal(c.write[0]?.tasks.map(t => t.mark).join(''), ' x')
   })
 
   test('finishing the last task says so', () => {
     const p = pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x-~') }))
-    expect(ok(M.finishTask(p, 1, 3)).message).toMatch(/all tasks ended/)
+    assert.match(ok(M.finishTask(p, 1, 3)).message, /all tasks ended/)
   })
 
   test('tasks only move on the active goal', () => {
-    expect(no(M.startTask(pool(goal({ id: 1, status: 'planned', split: 'tasks', tasks: tasks(' ') })), 1, 1))).toMatch(/not the active goal/)
+    assert.match(no(M.startTask(pool(goal({ id: 1, status: 'planned', split: 'tasks', tasks: tasks(' ') })), 1, 1)), /not the active goal/)
   })
 
   test('skip picks the in-progress task first, then the first pending one', () => {
-    expect(ok(M.skipTask(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks(' ~') })))).message).toMatch(/T2/)
-    expect(ok(M.skipTask(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x  ') })))).message).toMatch(/T2/)
+    assert.match(ok(M.skipTask(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks(' ~') })))).message, /T2/)
+    assert.match(ok(M.skipTask(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x  ') })))).message, /T2/)
   })
 
   test('added tasks continue the numbering', () => {
     const c = ok(M.addTask(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('xx') })), 1, '补测试', '测试通过'))
-    expect(c.write[0]?.tasks.at(-1)).toEqual({ n: 3, mark: ' ', title: '补测试', acceptance: '测试通过' })
-    expect(no(M.addTask(pool(goal({ id: 1, status: 'active', split: 'tasks' })), 1, 'a | 验收: b', 'c'))).toMatch(/acceptance/)
-    expect(no(M.addTask(pool(goal({ id: 1, status: 'active', split: 'tasks' })), 1, 'a | acceptance: b', 'c'))).toMatch(/acceptance/)
+    assert.deepEqual(c.write[0]?.tasks.at(-1), { n: 3, mark: ' ', title: '补测试', acceptance: '测试通过' })
+    assert.match(no(M.addTask(pool(goal({ id: 1, status: 'active', split: 'tasks' })), 1, 'a | 验收: b', 'c')), /acceptance/)
+    assert.match(no(M.addTask(pool(goal({ id: 1, status: 'active', split: 'tasks' })), 1, 'a | acceptance: b', 'c')), /acceptance/)
   })
 
   test('done waits for every task or child to end', () => {
-    expect(no(M.completeGoal(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x ') })), 1))).toMatch(/T2/)
-    expect(ok(M.completeGoal(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x-') })), 1)).write[0]?.status).toBe('done')
+    assert.match(no(M.completeGoal(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x ') })), 1)), /T2/)
+    assert.equal(ok(M.completeGoal(pool(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x-') })), 1)).write[0]?.status, 'done')
     const p = pool(goal({ id: 1, split: 'goals', status: 'planned' }), goal({ id: 2, parent: 1, status: 'done' }), goal({ id: 3, parent: 1, status: 'planned' }))
-    expect(no(M.completeGoal(p, 1))).toMatch(/#3/)
+    assert.match(no(M.completeGoal(p, 1)), /#3/)
   })
 
   test('a parent is ready once all its children ended', () => {
     const p = pool(goal({ id: 1, split: 'goals', status: 'planned' }), goal({ id: 2, parent: 1, status: 'done' }), goal({ id: 3, parent: 1, status: 'dropped' }))
-    expect(M.parentReady(p, 3)?.id).toBe(1)
+    assert.equal(M.parentReady(p, 3)?.id, 1)
   })
 
   test('broken files block changes to that goal', () => {
     const p: Pool = { goals: [], errors: [{ file: '4.md', reason: 'status 无效' }] }
-    expect(no(M.focusGoal(p, 4))).toMatch(/cannot be read/)
+    assert.match(no(M.focusGoal(p, 4)), /cannot be read/)
   })
 
   test('the tree puts children under their parent', () => {
     const p = pool(goal({ id: 1, split: 'goals' }), goal({ id: 2 }), goal({ id: 3, parent: 1 }))
-    expect(M.treeOrder(p).map(x => [x.goal.id, x.depth])).toEqual([
+    assert.deepEqual(M.treeOrder(p).map(x => [x.goal.id, x.depth]), [
       [1, 0],
       [3, 1],
       [2, 0],
@@ -242,21 +242,20 @@ describe('rules', () => {
 describe('labels', () => {
   test('a goal shows its status until it is active', () => {
     for (const status of ['idea', 'planning', 'planned', 'done'] as const) {
-      expect(M.labelOf(goal({ id: 1, status, split: 'tasks', tasks: tasks('x  ') }))).toBe(status)
+      assert.equal(M.labelOf(goal({ id: 1, status, split: 'tasks', tasks: tasks('x  ') })), status)
     }
   })
 
   test('an active goal shows the task in progress or next, out of all', () => {
-    expect(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('   ') }))).toBe('1/3')
-    expect(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x~ ') }))).toBe('2/3')
-    expect(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x- ') }))).toBe('3/3')
-    expect(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('xx~') }))).toBe('3/3')
+    assert.equal(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('   ') })), '1/3')
+    assert.equal(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x~ ') })), '2/3')
+    assert.equal(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('x- ') })), '3/3')
+    assert.equal(M.labelOf(goal({ id: 1, status: 'active', split: 'tasks', tasks: tasks('xx~') })), '3/3')
   })
 
   test('a parent split into goals shows its status, not its children', () => {
     const p = goal({ id: 1, status: 'planned', split: 'goals' })
-    expect(M.labelOf(p)).toBe('planned')
-    expect(M.statusText(pool(p, goal({ id: 2, parent: 1, status: 'done' })))).toBe('目标 1 · planned\n  目标 2 · done')
+    assert.equal(M.labelOf(p), 'planned')
   })
 })
 
@@ -269,12 +268,12 @@ describe('legacy files', () => {
     ].join('\n')
     const g = M.parseGoal(old, '1.md')
     if (M.isError(g)) throw new Error(g.reason)
-    expect(M.sectionBody(g, 'Acceptance')).toBe('能导出')
-    expect(g.tasks.map(t => t.acceptance)).toEqual(['字段确认', '内存稳定'])
+    assert.equal(M.sectionBody(g, 'Acceptance'), '能导出')
+    assert.deepEqual(g.tasks.map(t => t.acceptance), ['字段确认', '内存稳定'])
     const text = M.serializeGoal(g)
-    expect(text).toContain('## Description\n导出订单\n## Acceptance\n能导出\n## Approach\n流式\n## Decisions\n不分页\n## Tasks\n')
-    expect(text).toContain('- [x] T1 | 字段 | acceptance: 字段确认')
-    expect(text).not.toMatch(/描述|验收|方案|已定决策/)
+    assert.ok(text.includes('## Description\n导出订单\n## Acceptance\n能导出\n## Approach\n流式\n## Decisions\n不分页\n## Tasks\n'))
+    assert.ok(text.includes('- [x] T1 | 字段 | acceptance: 字段确认'))
+    assert.doesNotMatch(text, /描述|验收|方案|已定决策/)
   })
 })
 
@@ -285,52 +284,52 @@ describe('sibling order', () => {
 
   test('a group never reordered stays in creation order, and a new goal goes last', () => {
     const p = tree()
-    expect(titles(p)).toEqual([1, 2, 3, 4, 5])
+    assert.deepEqual(titles(p), [1, 2, 3, 4, 5])
     const c = ok(M.createGoal(p, { title: '新', parent: 1, today: 'd' }))
-    expect(c.write[0]?.order).toBeNull()
-    expect(titles(M.applyChange(p, c.write))).toEqual([1, 2, 3, 4, 6, 5])
+    assert.equal(c.write[0]?.order, null)
+    assert.deepEqual(titles(M.applyChange(p, c.write)), [1, 2, 3, 4, 6, 5])
   })
 
   test('moving renumbers the group, and later goals still go last', () => {
     const p = tree()
     const moved = ok(M.moveGoal(p, 4, 2))
-    expect(moved.message).toBe('Moved #4 目标 4 before #2')
+    assert.equal(moved.message, 'Moved #4 目标 4 before #2')
     const q = M.applyChange(p, moved.write)
-    expect(titles(q)).toEqual([1, 4, 2, 3, 5])
-    expect(M.childrenOf(q, 1).map(g => g.order)).toEqual([1, 2, 3])
+    assert.deepEqual(titles(q), [1, 4, 2, 3, 5])
+    assert.deepEqual(M.childrenOf(q, 1).map(g => g.order), [1, 2, 3])
     const made = ok(M.createGoal(q, { title: '新', parent: 1, today: 'd' }))
-    expect(made.write[0]?.order).toBe(4)
+    assert.equal(made.write[0]?.order, 4)
     const r = M.applyChange(q, made.write)
-    expect(titles(r)).toEqual([1, 4, 2, 3, 6, 5])
-    expect(titles(M.applyChange(r, ok(M.moveGoal(r, 4)).write))).toEqual([1, 2, 3, 6, 4, 5])
+    assert.deepEqual(titles(r), [1, 4, 2, 3, 6, 5])
+    assert.deepEqual(titles(M.applyChange(r, ok(M.moveGoal(r, 4)).write)), [1, 2, 3, 6, 4, 5])
   })
 
   test('top-level goals move too; sub-goals planned under a goal with none stay unordered', () => {
     const p = tree()
     const q = M.applyChange(p, ok(M.moveGoal(p, 5, 1)).write)
-    expect(titles(q)).toEqual([5, 1, 2, 3, 4])
+    assert.deepEqual(titles(q), [5, 1, 2, 3, 4])
     const parent = goal({ id: 9, status: 'planning' })
     const r = M.applyChange(q, [parent, ...ok(M.moveGoal(M.applyChange(q, [parent]), 9, 5)).write])
-    expect(titles(r).slice(0, 2)).toEqual([9, 5])
+    assert.deepEqual(titles(r).slice(0, 2), [9, 5])
     const planned = ok(M.planGoal(r, { id: 9, acceptance: 'a', approach: 'b', split: 'goals', goals: [{ title: '甲' }, { title: '乙' }], today: 'd' }))
-    expect(planned.write.slice(1).map(g => g.order)).toEqual([null, null])
+    assert.deepEqual(planned.write.slice(1).map(g => g.order), [null, null])
   })
 
   test('only siblings can be reordered', () => {
     const p = tree()
-    expect(no(M.moveGoal(p, 2, 5))).toMatch(/not a sibling/)
-    expect(no(M.moveGoal(p, 2, 2))).toMatch(/before itself/)
-    expect(no(M.moveGoal(p, 7))).toMatch(/no goal #7/)
-    expect(no(M.moveGoal(p, 2, 7))).toMatch(/no goal #7/)
+    assert.match(no(M.moveGoal(p, 2, 5)), /not a sibling/)
+    assert.match(no(M.moveGoal(p, 2, 2)), /before itself/)
+    assert.match(no(M.moveGoal(p, 7)), /no goal #7/)
+    assert.match(no(M.moveGoal(p, 2, 7)), /no goal #7/)
   })
 
   test('order is written only once set, and read back', () => {
     const plain = M.serializeGoal(goal({ id: 1 }))
-    expect(plain).not.toContain('order:')
+    assert.ok(!plain.includes('order:'))
     const g = M.parseGoal(M.serializeGoal(goal({ id: 1, order: 3 })), '1.md')
-    expect(M.isError(g) ? g.reason : g.order).toBe(3)
+    assert.equal(M.isError(g) ? g.reason : g.order, 3)
     const bad = M.parseGoal(plain.replace('split:', 'order: x\nsplit:'), '1.md')
-    expect(M.isError(bad) && bad.reason).toMatch(/order/)
+    assert.match(M.isError(bad) && bad.reason, /order/)
   })
 })
 
@@ -343,17 +342,17 @@ describe('naming a goal', () => {
   )
 
   test('by number, by a part of the title, or by the whole title', () => {
-    expect(M.resolveRef(p, '#3')).toBe(3)
-    expect(M.resolveRef(p, '12')).toBe(12)
-    expect(M.resolveRef(p, 'tests')).toBe(2)
-    expect(M.resolveRef(p, 'csv EXPORT')).toBe(1)
-    expect(M.resolveRef(p, 'import')).toBe(3)
+    assert.equal(M.resolveRef(p, '#3'), 3)
+    assert.equal(M.resolveRef(p, '12'), 12)
+    assert.equal(M.resolveRef(p, 'tests'), 2)
+    assert.equal(M.resolveRef(p, 'csv EXPORT'), 1)
+    assert.equal(M.resolveRef(p, 'import'), 3)
   })
 
   test('several matches list the candidates; none says so', () => {
-    expect(no(M.resolveRef(p, 'csv') as M.Outcome)).toBe(
+    assert.equal(no(M.resolveRef(p, 'csv') as M.Outcome),
       '"csv" matches several goals; write more of the title or its number:\n  CSV export (#1)\n  CSV export tests (#2)',
     )
-    expect(no(M.resolveRef(p, 'deploy') as M.Outcome)).toBe('No goal matches "deploy"')
+    assert.equal(no(M.resolveRef(p, 'deploy') as M.Outcome), 'No goal matches "deploy"')
   })
 })

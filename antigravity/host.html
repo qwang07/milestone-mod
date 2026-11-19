@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Milestone</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; }
+  iframe { flex: 1; width: 100%; border: 0; }
+  p { margin: 16px; color: var(--foreground, #333); font: 14px system-ui; }
+</style>
+<script src="/preload.js"></script>
+<p id="status" role="status">正在打开 Milestone…</p>
+<iframe title="Milestone" sandbox="allow-scripts" hidden></iframe>
+<script type="module">/* HOST_BUNDLE */</script>
+</html>

@@ -1,50 +1,101 @@
-# End-to-end check
+# Milestone verification
 
-Walk milestone through a real session in a scratch project. Each step says how to tell it passed.
+Run `npm test` from `codex/` to check the goal model, workflow, storage and panel.
+Run the filesystem event tests outside a sandbox that suppresses `fs.watch` or loopback listeners.
+Run `npm run verify -- --apps` from `codex/` to check the thread entrypoint and HTML resource in a temporary project.
+Open Milestone from `+` → `More tools…` → `Plugins and MCPs` in a Codex Desktop test chat.
+Change a goal while the panel stays open.
+Check that the panel updates without pressing refresh.
+Close the tab.
+Reopen it from the same menu and check that it shows the latest state.
+Use two test projects to verify project isolation.
 
-## Setup
+## Codex thread entrypoint, 2026-11-19
 
-```bash
-mkdir -p /tmp/ms-trial && cd /tmp/ms-trial && git init -q
-cat /path/to/milestone-mod/CLAUDE.md.snippet >> CLAUDE.md
-claude --plugin-dir /path/to/milestone-mod
-```
+Passed all 49 automated tests.
+Verified live event delivery and view teardown in the automated tests.
+Verified that the app-server bundled with Codex Desktop discovers the installed 0.3.1 thread entrypoint.
+Read the bundled HTML and called `open_app` with empty arguments through that app-server.
+Verified that the regular package and the isolated test package read their respective projects.
+Opened the native test tab from the menu in a chat that was already active before plugin installation.
+Observed `unknown MCP server 'milestone_thread_check'` when the desktop tried to read the HTML and call the opening tool.
+Restarted Codex and opened the test tab in the same chat.
+Verified that the native view showed the isolated project's initial goal.
+Observed that a test goal change did not refresh the 0.3.1 view.
+Confirmed that Codex blocked loopback access from the sandbox and rejected the custom subscription URI.
+Changed 0.3.2 to subscribe to the generated progress file through the host.
+Passed all 50 automated tests and the isolated app-server check with 0.3.2.
+Opened the 0.3.2 native tab after restarting Codex.
+Confirmed that Codex rejected the local plugin's file subscription.
+Changed 0.3.3 to wait for filesystem events through an app-only MCP tool.
+Passed all 51 automated tests and the isolated app-server check with 0.3.3.
+Verified that a pending tool call wakes after a separate MCP connection changes the project.
+Verified that the panel cancels its wait on teardown in the automated test.
+Installed 0.3.3 in the normal and isolated local packages.
+Opened 0.3.3 from the native right-panel menu in the original Codex chat after restart.
+Created goal 2 directly in the isolated project at 13:55:58.205 China Standard Time.
+Observed the pending native `wait_panel` request finish at 13:55:58.339.
+Observed the same panel automatically finish its next `read_panel` at 13:55:58.348.
+Confirmed that the user saw the new goal in the open panel.
+Observed Codex tear down the view at 13:56:27 and open a new view at 13:56:31.
+Observed the old view stop renewing its wait.
+Observed the last server wait expire after 25 seconds because the host did not forward cancellation.
+Confirmed that the user saw the updated goal after reopening the panel.
+Verified that the original project's `.goals/project.json` kept its pre-test SHA-256.
 
-## Steps
+## File entrypoint removal, 0.3.4
 
-| # | Do | Passes when |
-|---|---|---|
-| 0 | `/ms-status` | It answers "No goals yet"; command completion lists the 12 `/ms-*` commands |
-| 1 | Ask Claude "which milestone tools do you have" | It lists the 8 `mcp__milestone__*` tools without a tool search (`isDeferred: false` works) |
-| 2 | `/ms-new add a hello script to the project` | `.goals/1.md` appears with `status: idea` |
-| 3 | `/ms-plan 1` | 1.md turns `status: planning`; Claude proposes a plan and waits; `git status` shows no file changed but `.goals/1.md` |
-| 4 | Reply "confirmed" | Claude calls `plan_goal`; 1.md has `status: planned` and numbered tasks under `## Tasks` |
-| 5 | `/ms-focus 1` | The panel opens with `▶ #1` highlighted, its tasks below |
-| 6 | `/ms-next` | Claude does T1 only, `start_task` → check → `finish_task`, reports and stops; T1 is `[x]` in 1.md and in the panel |
-| 7 | Note whether the first tool call asks for permission | Record the result; if it asks, record the allow rule needed |
-| 8 | Leave the session and start `claude --plugin-dir …` again in the same folder | The panel opens by itself; Claude says nothing and waits |
-| 9 | `/ms-auto 2` | Two tasks run back to back, then it stops with a notification: "no runs left" or "the goal is done" |
-| 10 | `/ms-add a check that fails`, agree, then `/ms-next` it with an acceptance that cannot pass (say "the command `false` exits 0") | 1.md is unchanged before you agree; afterwards Claude does not call `finish_task`; under `/ms-auto` the notification says "T<k> was not finished" and nothing more is submitted |
-| 11 | Finish or `/ms-skip` the last task | 1.md turns `status: done` without `/ms-done`; the panel shows `done` |
-| 12 | `/ms-new sub-goal --under 1` | Refused (#1 is split into tasks); after `/ms-new parent`, `/ms-new child --under <its number>` works and the parent has `split: goals` |
-| 13 | Break a goal file by hand (say `status: open`) | The panel and `/ms-status` flag "Cannot read" with the reason; commands on it are refused and the file is left as it is |
-| 14 | Start a second session on the same project in another terminal and `/ms-new A` there | The first session's panel shows A within 5 seconds |
-| 15 | Record three goals, then tell Claude "move the third before the first" | Claude calls `move_goal`; the panel and `/ms-status` show the new order; each file has `order:` |
-| 16 | In the panel (terminal or desktop app), point at a row, then drag it above its first sibling | A `⠿` handle shows on the row under the pointer; the row moves as you drag, only among its siblings; after letting go the order stays and the files' `order:` match it |
-| 17 | Click Keep going, then Pause after task | The current task finishes; no following task starts; the panel shows the stop reason |
-| 18 | Click Next task | One task runs; continuation stops after its turn |
-| 19 | Ask Claude to continue for one task | Claude calls `control_run` with action `continue` and count 1; one scheduled task runs |
+Removed the Codex file entrypoint.
+Stopped generating the progress file.
+Passed all 50 remaining automated tests.
+Verified that the installed plugin registers only the `thread` entrypoint in a fresh Codex app-server connection.
+Verified that an independent project write still wakes the panel's pending MCP request.
+Verified that the original project's `.goals/project.json` kept its pre-test SHA-256.
+Use the 0.3.3 record for the desktop click-through.
 
-## Record
+## Antigravity feasibility check, 2026-11-19
 
-v0.1.0, 2026-10-11, Claude Code 2.1.295 / 2.1.296, macOS.
+Built the Codex and Antigravity 0.4.0 packages from the same sources.
+Verified that the two packages contain byte-identical panel HTML.
+Verified that Antigravity App 2.33.0 calls the Milestone MCP tool in an isolated workspace.
+Observed Antigravity launch its MCP process with `/` as the working directory.
+Passed an explicit `--project` path and used distinct server keys for the two isolated workspaces.
+Observed Antigravity discover `open_app` with the documented `aux_pane` metadata.
+Observed the host omit the MCP Apps capability during the legacy handshake and in a separate modern protocol probe.
+Observed no Milestone entry in the right-panel menu in either probe.
+Checked the published Google settings and MCP documentation for an MCP Apps enablement option.
+Checked General, Advanced, and Application settings in the installed app.
+Found no documented or visible switch for MCP Apps.
+The MCP Apps probe did not reach desktop opening, closing, or automatic refresh in Antigravity.
+Passed all 50 automated tests and the Codex app-server verifier with 0.4.0.
+See the Sidecar desktop verification below for the subsequent Codex desktop test.
 
-| Item | Result | Evidence |
-|---|---|---|
-| Permission prompt on the first tool call | None in auto mode | Session `permissionMode: "auto"`; `plan_goal` and `start_task` went straight through. "Ask every time" mode not tested |
-| Panel sync across two sessions | In sync | After `/ms-new` in a second session (`claude -p`), the first session's panel showed the new goal; the goal later `/ms-drop`ped had `status: dropped` |
-| Commands Claude names in a new session | Accurate | A new session named `/ms-new`, `/ms-plan`, `/ms-focus`, `/ms-next` in turn; the commands it mentioned were exactly the 11 real ones |
-| Panel notice in a narrow terminal | Shown | In a terminal about 50 columns wide, reopening a session with an active goal showed the notification pointing to `/ms-panel` |
+## Antigravity Sidecar desktop verification, 2026-11-19
+
+Opened Milestone from the right-panel `+` menu and Extensions in Antigravity App 2.33.0.
+Verified that an out-of-band write to workspace B appeared without a manual refresh.
+Closed the tab and observed that its MCP child process exited after the visibility cleanup.
+Reopened the tab and verified the latest goal remained visible.
+Opened workspace A and verified that it displayed its own goals.
+Compared the Codex and Antigravity `panel.html` files byte for byte.
+Used the same isolated workspace B for both desktop tests.
+Installed the temporary Codex 0.4.0 plugin `milestone-codex-qa@milestone-sidecar-check-local` for the desktop regression.
+Confirmed the restarted Codex chat loaded the temporary MCP server.
+Passed the 50 automated Codex tests and the 0.4.0 app-server check again after the Sidecar changes.
+Verified that the Codex catalog launcher found the installed server and preserved the workspace.
+Verified native Codex opening, automatic refresh, closing, and reopening with 0.4.0.
+Observed the panel read the new state about 140 milliseconds after an independent write to workspace B.
+Observed the closed view stop renewing its wait.
+Observed the remaining wait expire after 25 seconds.
+Published both packages to [qwang07/plugins](https://github.com/qwang07/plugins/commit/361a2cbad6482d02921a6033ab0ae64f198018de).
+Installed Codex from the published catalog.
+Verified that the catalog installation opens workspace A and workspace B independently in fresh Codex connections.
+Verified that the installed Antigravity bundle matches the published bundle.
+Removed the temporary Codex and Antigravity plugin entries after verifying the published installations.
+
+## Historical verification records
+
+Use the version listed in each record when interpreting its results.
 
 ## Codex plan-review verification, 2026-11-16
 
@@ -105,44 +156,6 @@ The current desktop chat still reported Milestone 0.1.0 during inspection.
 The desktop host exposed no listening control socket for the external CLI proxy.
 No current desktop process was restarted or terminated.
 The evidence is `/private/var/folders/5m/pfrq2m_j2r946vgxzvyy2zpc0000gn/T/milestone-mcp-reload-0Rx3Oq/verification.json`.
-
-### Local terminal verification, 2026-11-16
-
-Run Claude Code 2.1.325 in a real interactive terminal at 180 columns and 48 rows.
-Load this checkout with `--plugin-dir`.
-Use an isolated temporary project with one active goal and three pending tasks.
-
-| Check | Result |
-|---|---|
-| Load the plugin and render the goal panel | Passed |
-| Click Next task | Submitted the task prompt |
-| Click Keep going | Submitted the task prompt in automatic mode |
-| Handle a failed model request | Stopped execution and displayed `Stopped: the turn failed` |
-| Run `/ms-pause` | Displayed `Stopped: paused by the user` |
-| Preserve the original project goals | All seven file hashes remained unchanged |
-| Complete a task and continue automatically | Blocked by Claude subscription rejection |
-| Click Pause after task during task execution, then resume | Unverified; requires a successful model request |
-| Operate the native desktop panel | Unverified |
-
-Claude rejected the model requests because it could not use the current subscription.
-The response suggested renewing billing or using an Anthropic API key.
-The exact account cause remains unverified.
-Check the account's subscription status before repeating the model checks.
-All three fixture tasks remained pending.
-No fixture output files were created.
-
-The temporary project is `/private/var/folders/5m/pfrq2m_j2r946vgxzvyy2zpc0000gn/T/milestone-live-check-qqlwzp6g`.
-The project contains `live-verification.json` with the recorded checks.
-The local debug log is `/private/tmp/milestone-live-unsandboxed.log`.
-
-### Commands
-
-```bash
-claude plugin validate /path/to/milestone-mod
-claude plugin test /path/to/milestone-mod
-```
-
-validate passes; every test passes.
 
 ## Codex What / How verification, 2026-11-17
 
