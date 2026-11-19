@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import packageInfo from './package.json' with { type: 'json' };
 
 const source = (await readFile(new URL('./app.mjs', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
 const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -37,6 +38,7 @@ async function fixture(initial = { revision: '1', test: {} }, openingSnapshot) {
   }
   const document = { hidden: false, querySelector(selector) { return elements[selector] ??= { hidden: true, textContent: '', addEventListener(event, handler) { this[event] = handler; } }; }, addEventListener(event, handler) { listeners[event] = handler; } };
   const context = vm.createContext({ App, AbortController, document, window: { addEventListener(event, handler) { listeners[event] = handler; } }, ResourceUpdatedNotificationSchema: {}, applyDocumentTheme() {}, applyHostStyleVariables() {}, renderPanel(_document, data) { rendered.push(data.revision); }, setTimeout(fn, delay) { timers.set(++id, { fn, delay }); return id; }, clearTimeout(key) { timers.delete(key); } });
+  context.packageInfo = packageInfo;
   await vm.runInContext(`(async () => {${source}\nreturn app;})()`, context).then(app => { context.app = app; });
   return { document, listeners, elements, rendered, timers, waits, app: context.app, get calls() { return calls; }, set response(value) { response = value; }, hold() { held = new Promise(resolve => { this.release = value => { held = null; resolve(value); }; }); } };
 }

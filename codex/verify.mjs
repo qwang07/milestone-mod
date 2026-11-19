@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import * as M from '../core/model.ts';
+import packageInfo from './package.json' with { type: 'json' };
 
 if (process.argv.includes('--execute') || process.argv.includes('--plan')) throw new Error('The 0.2 execution-loop verifier is retired. Run npm test for the 0.3 project workflow.');
 const here = dirname(fileURLToPath(import.meta.url));
@@ -144,8 +145,8 @@ try {
     await writeFile(join(scratch, 'mcp-app-resource.html'), panel.contents[0].text);
     const opened = await call('open_app');
     assert.equal(opened.project, await realpath(scratch));
+    assert.equal(opened.version, packageInfo.version);
     if (installed) {
-      assert.equal(opened.version, '0.4.0');
       assert.deepEqual(opened.test.errors, []);
       assert(selected.tools.report_task);
       assert(!selected.tools.control_run);

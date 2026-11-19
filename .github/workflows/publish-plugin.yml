@@ -1,0 +1,103 @@
+name: Publish Milestone plugin
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event_name != 'push' || !github.event.deleted
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: codex/package-lock.json
+      - name: Set package version
+        id: version
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == 'push' ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(node -p "require('./codex/package.json').version")"
+          fi
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Expected a major.minor.patch version, got $version."
+            exit 1
+          fi
+          npm --prefix codex version "$version" --no-git-tag-version --allow-same-version
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - run: npm ci --prefix codex
+      - run: npm test --prefix codex
+      - name: Build and validate both packages
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          packages="$RUNNER_TEMP/milestone-packages"
+          node codex/build.mjs --marketplace qwang07 --out "$packages/codex"
+          node codex/build.mjs --host antigravity --out "$packages/antigravity"
+          test "$(node -p 'require(process.argv[1]).version' "$packages/codex/.codex-plugin/plugin.json")" = "$RELEASE_VERSION"
+          test "$(node -p 'require(process.argv[1]).version' "$packages/antigravity/plugin.json")" = "$RELEASE_VERSION"
+          test -s "$packages/codex/.mcp.json"
+          test -s "$packages/antigravity/sidecars/panel/sidecar.json"
+          cmp "$packages/codex/panel.html" "$packages/antigravity/panel.html"
+          cmp "$packages/codex/server.mjs" "$packages/antigravity/server.mjs"
+          node --check "$packages/codex/server.mjs"
+          node --check "$packages/antigravity/sidecars/panel/main.mjs"
+          tar -czf "$RUNNER_TEMP/milestone-packages.tar.gz" -C "$packages" codex antigravity
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: milestone-packages
+          path: ${{ runner.temp }}/milestone-packages.tar.gz
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: milestone-plugin-publish
+      queue: max
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: plugin
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: milestone-packages
+          path: ${{ runner.temp }}
+      - name: Publish both packages in one commit
+        env:
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          directory=plugins/milestone
+          current="$(node -p "require('./$directory/codex/.codex-plugin/plugin.json').version")"
+          newest="$(printf '%s\n' "$current" "$RELEASE_VERSION" | sort -V | tail -n 1)"
+          if [[ "$current" == "$RELEASE_VERSION" || "$newest" != "$RELEASE_VERSION" ]]; then
+            echo "Version $current is already published. Skipping $RELEASE_VERSION."
+            exit 0
+          fi
+
+          rm -r -- "$directory/codex" "$directory/antigravity"
+          tar -xzf "$RUNNER_TEMP/milestone-packages.tar.gz" -C "$directory"
+          git add -A -- "$directory/codex" "$directory/antigravity"
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Publish Milestone $RELEASE_VERSION packages" -m "Source: $GITHUB_SHA"
+          git push origin HEAD:refs/heads/plugin

@@ -1,7 +1,8 @@
 import { App, applyDocumentTheme, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps';
 import { ResourceUpdatedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { renderPanel } from './render.mjs';
-const app = new App({ name: 'Milestone', version: '0.4.0' });
+import packageInfo from './package.json' with { type: 'json' };
+const app = new App({ name: 'Milestone', version: packageInfo.version });
 const $ = selector => document.querySelector(selector);
 const STATE_URI = 'milestone://panel/state';
 let renderedRevision, latestRead = 0, connected = false, inFlight = false, pending = false, currentProject;

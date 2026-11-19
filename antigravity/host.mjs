@@ -1,4 +1,5 @@
 import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
+import packageInfo from '../codex/package.json' with { type: 'json' };
 
 const status = document.querySelector('#status');
 const frame = document.querySelector('iframe');
@@ -42,7 +43,7 @@ async function open() {
       return;
     }
     current.id = result.id;
-    const bridge = new AppBridge(null, { name: 'Milestone for Antigravity', version: '0.4.0' },
+    const bridge = new AppBridge(null, { name: 'Milestone for Antigravity', version: packageInfo.version },
       { serverTools: {} }, {
         hostContext: {
           theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',

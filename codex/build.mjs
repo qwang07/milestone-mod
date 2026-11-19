@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { tmpdir } from 'node:os';
+import packageInfo from './package.json' with { type: 'json' };
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const antigravity = join(here, '..', 'antigravity');
@@ -16,7 +17,7 @@ export async function buildPlugin(destination, args = ['--project', '.'], host =
   const script = (await build({ entryPoints: [join(here, 'app.mjs')], bundle: true, platform: 'browser', format: 'esm', write: false })).outputFiles[0].text;
   const html = (await readFile(join(here, 'app.html'), 'utf8')).replace('/* APP_BUNDLE */', () => inline(script));
   await writeFile(join(destination, 'panel.html'), html);
-  const version = '0.4.0';
+  const { version } = packageInfo;
   const description = 'Project plans, deliverables and progress';
   if (host === 'antigravity') {
     await writeFile(join(destination, 'plugin.json'), JSON.stringify({ name: 'milestone', displayName: 'Milestone', version, description }, null, 2));

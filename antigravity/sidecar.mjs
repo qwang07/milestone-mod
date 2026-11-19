@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SidecarApp, Response } from 'sidecar_sdk';
+import packageInfo from '../codex/package.json' with { type: 'json' };
 
 const here = name => new URL(name, import.meta.url);
 const sessions = new Map();
@@ -41,7 +42,7 @@ app.api('/api/session', async ({ workspaceUris } = {}) => {
     return { error: '当前工作区没有 Milestone 项目。' };
   }
   const id = randomUUID();
-  const client = new Client({ name: 'milestone-antigravity', version: '0.4.0' });
+  const client = new Client({ name: 'milestone-antigravity', version: packageInfo.version });
   const transport = new StdioClientTransport({
     command: process.env.MILESTONE_NODE ?? 'node', args: [serverPath, '--project', project], cwd: project,
   });

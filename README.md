@@ -19,3 +19,20 @@ Milestone migrates legacy `.goals/<id>.md` files on first access. The migration 
 ## Verification
 
 Run `npm test` from `codex/`. Follow [Milestone verification](VERIFY.md) to check the MCP connection and desktop panel.
+
+## Publish a version
+
+Push the release commit to `main`.
+Create a version tag in the form `vMAJOR.MINOR.PATCH` on that commit.
+Push the tag.
+
+```sh
+git tag v0.4.1
+git push origin v0.4.1
+```
+
+Check the [Publish Milestone plugin workflow](https://github.com/qwang07/milestone-mod/actions/workflows/publish-plugin.yml).
+GitHub Actions takes the package version from the tag.
+GitHub Actions tests the tagged source and builds both packages.
+GitHub Actions updates the [`plugin` branch](https://github.com/qwang07/milestone-mod/tree/plugin/plugins/milestone) in one commit after both packages pass validation.
+Run the workflow manually to test and build without publishing.

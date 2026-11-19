@@ -14,6 +14,7 @@ import { SubscribeRequestSchema, UnsubscribeRequestSchema } from '@modelcontextp
 import * as M from '../core/model.ts';
 import { panel } from './panel.mjs';
 import { ProjectStore } from '../storage/project.mjs';
+import packageInfo from './package.json' with { type: 'json' };
 
 const { values } = parseArgs({
   args: process.argv.slice(2),
@@ -65,7 +66,8 @@ const guarded = fn => async args => {
   try { return result(await fn(args)); }
   catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
 };
-const server = new McpServer({ name: 'milestone-codex-probe', version: '0.4.0' });
+const { version } = packageInfo;
+const server = new McpServer({ name: 'milestone-codex-probe', version });
 const APP_URI = 'ui://milestone/panel.html';
 const STATE_URI = 'milestone://panel/state';
 let appHtml;
@@ -107,7 +109,7 @@ async function panelState() {
   const rows = pool => M.treeOrder(pool).filter(x => x.goal.status !== 'dropped').map(({ goal, depth }) =>
     ({ id: goal.id, status: goal.status, title: goal.title, depth, label: M.labelOf(goal) }));
   const revision = createHash('sha256').update(JSON.stringify([existing.revision, test.revision, test.run, test.drafts])).digest('hex');
-  return { version: '0.4.0', source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
+  return { version, source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
 }
 server.registerResource('milestone-state', STATE_URI, { mimeType: 'application/json' }, async () => ({
   contents: [{ uri: STATE_URI, mimeType: 'application/json', text: JSON.stringify(await panelState()) }],
