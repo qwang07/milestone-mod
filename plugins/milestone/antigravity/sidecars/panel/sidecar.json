@@ -1,0 +1,16 @@
+{
+  "command": "node",
+  "args": ["main.mjs"],
+  "display_name": "Milestone",
+  "description": "Read project goals and live progress.",
+  "has_web_ui": true,
+  "ui_config": {
+    "views": [
+      {
+        "path": "/",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+        "title": "Milestone"
+      }
+    ]
+  }
+}

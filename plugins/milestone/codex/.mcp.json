@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "milestone_apps": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "--input-type=module",
+        "--eval",
+        "import { homedir } from 'node:os';\nimport { join } from 'node:path';\nimport { pathToFileURL } from 'node:url';\n\nconst [marketplace, plugin, version, ...args] = process.argv.slice(1);\n// The legacy Codex manifest preserves the conversation cwd but does not\n// interpolate the plugin root in stdio arguments.\nconst codexHome = process.env.CODEX_HOME || join(homedir(), '.codex');\nconst server = join(codexHome, 'plugins', 'cache', marketplace, plugin, version, 'server.mjs');\nprocess.argv = [process.execPath, server, ...args];\nawait import(pathToFileURL(server).href);\n",
+        "--",
+        "qwang07",
+        "milestone",
+        "0.4.0",
+        "--project",
+        "."
+      ]
+    }
+  }
+}
