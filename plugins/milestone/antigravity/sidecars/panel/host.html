@@ -29284,6 +29284,28 @@ function SF(G, Q) {
   return JSON.stringify(G) === JSON.stringify(Q);
 }
 
+// codex/package.json
+var package_default = {
+  name: "milestone-codex",
+  private: true,
+  type: "module",
+  engines: {
+    node: ">=22.18.0"
+  },
+  scripts: {
+    verify: "node verify.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs",
+    build: "node build.mjs"
+  },
+  dependencies: {
+    "@modelcontextprotocol/ext-apps": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    esbuild: "0.28.2",
+    zod: "4.6.7"
+  },
+  version: "0.4.1"
+};
+
 // antigravity/host.mjs
 var status = document.querySelector("#status");
 var frame = document.querySelector("iframe");
@@ -29329,7 +29351,7 @@ async function open2() {
     current.id = result.id;
     const bridge = new MF(
       null,
-      { name: "Milestone for Antigravity", version: "0.4.0" },
+      { name: "Milestone for Antigravity", version: package_default.version },
       { serverTools: {} },
       {
         hostContext: {

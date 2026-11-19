@@ -30948,8 +30948,30 @@ function renderPanel(document2, data) {
   $2("#errors").textContent = pool.errors.map((e) => `${e.file}: ${e.reason}`).join("\n");
 }
 
+// codex/package.json
+var package_default = {
+  name: "milestone-codex",
+  private: true,
+  type: "module",
+  engines: {
+    node: ">=22.18.0"
+  },
+  scripts: {
+    verify: "node verify.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs",
+    build: "node build.mjs"
+  },
+  dependencies: {
+    "@modelcontextprotocol/ext-apps": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    esbuild: "0.28.2",
+    zod: "4.6.7"
+  },
+  version: "0.4.1"
+};
+
 // codex/app.mjs
-var app = new l({ name: "Milestone", version: "0.4.0" });
+var app = new l({ name: "Milestone", version: package_default.version });
 var $ = (selector) => document.querySelector(selector);
 var STATE_URI = "milestone://panel/state";
 var renderedRevision;

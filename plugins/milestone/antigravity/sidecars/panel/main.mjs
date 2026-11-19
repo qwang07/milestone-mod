@@ -17738,6 +17738,30 @@ var StdioClientTransport = class {
 
 // antigravity/sidecar.mjs
 import { SidecarApp, Response } from "sidecar_sdk";
+
+// codex/package.json
+var package_default = {
+  name: "milestone-codex",
+  private: true,
+  type: "module",
+  engines: {
+    node: ">=22.18.0"
+  },
+  scripts: {
+    verify: "node verify.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs",
+    build: "node build.mjs"
+  },
+  dependencies: {
+    "@modelcontextprotocol/ext-apps": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    esbuild: "0.28.2",
+    zod: "4.6.7"
+  },
+  version: "0.4.1"
+};
+
+// antigravity/sidecar.mjs
 var here = (name) => new URL(name, import.meta.url);
 var sessions = /* @__PURE__ */ new Map();
 var serverPath = fileURLToPath(here("../../server.mjs"));
@@ -17769,7 +17793,7 @@ app.api("/api/session", async ({ workspaceUris } = {}) => {
     return { error: "\u5F53\u524D\u5DE5\u4F5C\u533A\u6CA1\u6709 Milestone \u9879\u76EE\u3002" };
   }
   const id = randomUUID();
-  const client = new Client({ name: "milestone-antigravity", version: "0.4.0" });
+  const client = new Client({ name: "milestone-antigravity", version: package_default.version });
   const transport = new StdioClientTransport({
     command: process.env.MILESTONE_NODE ?? "node",
     args: [serverPath, "--project", project],

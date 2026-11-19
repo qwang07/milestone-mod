@@ -8138,11 +8138,11 @@ function datetimeRegex(args) {
   regex = `${regex}(${opts.join("|")})`;
   return new RegExp(`^${regex}$`);
 }
-function isValidIP(ip, version2) {
-  if ((version2 === "v4" || !version2) && ipv4Regex.test(ip)) {
+function isValidIP(ip, version3) {
+  if ((version3 === "v4" || !version3) && ipv4Regex.test(ip)) {
     return true;
   }
-  if ((version2 === "v6" || !version2) && ipv6Regex.test(ip)) {
+  if ((version3 === "v6" || !version3) && ipv6Regex.test(ip)) {
     return true;
   }
   return false;
@@ -8169,11 +8169,11 @@ function isValidJWT(jwt2, alg) {
     return false;
   }
 }
-function isValidCidr(ip, version2) {
-  if ((version2 === "v4" || !version2) && ipv4CidrRegex.test(ip)) {
+function isValidCidr(ip, version3) {
+  if ((version3 === "v4" || !version3) && ipv4CidrRegex.test(ip)) {
     return true;
   }
-  if ((version2 === "v6" || !version2) && ipv6CidrRegex.test(ip)) {
+  if ((version3 === "v6" || !version3) && ipv6CidrRegex.test(ip)) {
     return true;
   }
   return false;
@@ -12887,10 +12887,10 @@ function nanoidOfLength(length) {
 var duration = /^P(?:(\d+W)|(?!.*W)(?=\d|T\d)(\d+Y)?(\d+M)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+([.,]\d+)?S)?)?)$/;
 var extendedDuration = /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/;
 var guid = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
-var uuid = (version2) => {
-  if (!version2)
+var uuid = (version3) => {
+  if (!version3)
     return /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/;
-  return new RegExp(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version2}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`);
+  return new RegExp(`^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version3}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`);
 };
 var uuid4 = /* @__PURE__ */ uuid(4);
 var uuid6 = /* @__PURE__ */ uuid(6);
@@ -31023,10 +31023,10 @@ function fromJSONSchema(schema, params) {
   } catch {
     throw new Error("fromJSONSchema input is not valid JSON (possibly cyclic); use $defs/$ref for recursive schemas");
   }
-  const version2 = detectVersion(normalized, params?.defaultTarget);
+  const version3 = detectVersion(normalized, params?.defaultTarget);
   const defs = normalized.$defs || normalized.definitions || {};
   const ctx = {
-    version: version2,
+    version: version3,
     defs,
     refs: /* @__PURE__ */ new Map(),
     processing: /* @__PURE__ */ new Set(),
@@ -37250,6 +37250,28 @@ var ProjectStore = class {
   }
 };
 
+// codex/package.json
+var package_default = {
+  name: "milestone-codex",
+  private: true,
+  type: "module",
+  engines: {
+    node: ">=22.18.0"
+  },
+  scripts: {
+    verify: "node verify.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs",
+    build: "node build.mjs"
+  },
+  dependencies: {
+    "@modelcontextprotocol/ext-apps": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    esbuild: "0.28.2",
+    zod: "4.6.7"
+  },
+  version: "0.4.1"
+};
+
 // codex/server.mjs
 var { values } = parseArgs({
   args: process.argv.slice(2),
@@ -37310,7 +37332,8 @@ var guarded = (fn) => async (args) => {
     return { isError: true, content: [{ type: "text", text: error62.message }] };
   }
 };
-var server = new McpServer({ name: "milestone-codex-probe", version: "0.4.0" });
+var { version: version2 } = package_default;
+var server = new McpServer({ name: "milestone-codex-probe", version: version2 });
 var APP_URI = "ui://milestone/panel.html";
 var STATE_URI = "milestone://panel/state";
 var appHtml;
@@ -37360,7 +37383,7 @@ async function panelState() {
   const [existing, test] = await Promise.all([source ? readPool(source) : Promise.resolve({ goals: [], errors: [], revision: "" }), store.snapshot()]);
   const rows = (pool) => treeOrder(pool).filter((x) => x.goal.status !== "dropped").map(({ goal, depth }) => ({ id: goal.id, status: goal.status, title: goal.title, depth, label: labelOf(goal) }));
   const revision = createHash2("sha256").update(JSON.stringify([existing.revision, test.revision, test.run, test.drafts])).digest("hex");
-  return { version: "0.4.0", source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
+  return { version: version2, source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
 }
 server.registerResource("milestone-state", STATE_URI, { mimeType: "application/json" }, async () => ({
   contents: [{ uri: STATE_URI, mimeType: "application/json", text: JSON.stringify(await panelState()) }]
