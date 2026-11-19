@@ -3,9 +3,9 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Auto, Pool } from '../types'
 
-import * as M from './model'
-import { fileName, idOfFile, isError, parseGoal, serializeGoal } from './model'
-import type { Goal } from './model'
+import * as M from '../core/model'
+import { fileName, idOfFile, isError, parseGoal, serializeGoal } from '../core/model'
+import type { Goal } from '../core/model'
 import { TREE, paneTree, treeRows } from './pane'
 
 type $ = EngineInterface
@@ -43,7 +43,7 @@ const goalsDir = async ($: $): Promise<{ dir: string; exists: boolean } | undefi
 }
 
 const place = async ($: $, name: string): Promise<string> => {
-  if (idOfFile(name) === undefined) throw new Error(`milestone only reads and writes .goals/<digits>.md; refused ${name}`)
+  if (name !== 'project.json' && idOfFile(name) === undefined) throw new Error(`milestone only reads and writes .goals/<digits>.md; refused ${name}`)
   const at = await goalsDir($)
   if (at === undefined) throw new Error('milestone: .goals/ is not inside the project; refused')
   const path = `${at.dir}/${name}`
@@ -60,6 +60,11 @@ const listGoalFiles = async ($: $): Promise<Listing> => {
   const at = await goalsDir($)
   if (at === undefined || !at.exists) return []
   const entries = await $.fs.list(at.dir)
+  const canonical = entries.find(e => e.name === 'project.json')
+  if (canonical) {
+    if (canonical.isLink || canonical.kind !== 'file') throw new Error('Invalid project.json')
+    return [{ name: canonical.name, mtimeMs: canonical.mtimeMs }]
+  }
   return entries
     .filter(e => e.kind === 'file' && !e.isLink && idOfFile(e.name) !== undefined)
     .map(e => ({ name: e.name, mtimeMs: e.mtimeMs }))
@@ -67,6 +72,11 @@ const listGoalFiles = async ($: $): Promise<Listing> => {
 
 const readPool = async ($: $): Promise<Pool> => {
   const files = await listGoalFiles($)
+  if (files[0]?.name === 'project.json') {
+    const project = JSON.parse(await $.fs.read(await place($, 'project.json')))
+    if (project.version !== 1 || !Array.isArray(project.goals)) throw new Error('Invalid project.json')
+    return { goals: project.goals, errors: [] }
+  }
   const pool: Pool = { goals: [], errors: [] }
   for (const f of files) {
     const text = await $.fs.read(await place($, f.name)).catch((err: unknown) => err)
@@ -83,7 +93,14 @@ const readPool = async ($: $): Promise<Pool> => {
   return pool
 }
 
-const writeGoals = async ($: $, goals: readonly Goal[]): Promise<void> => {
+const writeGoals = async ($: $, goals: readonly Goal[], before: Pool): Promise<void> => {
+  if ((await listGoalFiles($))[0]?.name === 'project.json') {
+    const result = await $.process.run(['node', `${$.plugin.root}/storage/update-goals.mjs`], {
+      cwd: await $.session.root(), stdin: JSON.stringify({ before: before.goals, write: goals }),
+    })
+    if (result.exitCode !== 0) throw new Error(result.stderr || 'Could not save project goals')
+    return
+  }
   for (const g of goals) await $.fs.write(await place($, fileName(g.id)), serializeGoal(g))
 }
 
@@ -113,7 +130,7 @@ const mutate = async ($: $, change: (pool: Pool) => M.Outcome | Promise<M.Outcom
     await update($, poolAtom, () => pool)
     return out
   }
-  await writeGoals($, out.write)
+  await writeGoals($, out.write, pool)
   await update($, poolAtom, () => M.applyChange(pool, out.write))
   return out
 }
@@ -127,17 +144,30 @@ const submit = ($: $, text: string) => {
   })
 }
 
-const stopAuto = async ($: $, reason?: string) => {
+const stopAuto = async ($: $, reason?: string, expectedRun?: string) => {
   const was = await read($, autoAtom)
-  await update($, autoAtom, () => STEP)
+  let stopped = false
+  await update($, autoAtom, current => {
+    if (expectedRun !== undefined && current.runId !== expectedRun) return current
+    stopped = true
+    return { ...STEP, ...(reason === undefined ? {} : { reason }) }
+  })
+  if (!stopped) return
   if (reason !== undefined && (was.remaining !== 0 || was.pending !== null)) {
     $.ui.toast(`milestone auto stopped: ${reason}`, { timeoutMs: 8000 })
   }
 }
 
+const pauseRun = async ($: $): Promise<string> => {
+  await update($, autoAtom, current => current.pending?.turnId !== undefined
+    ? { ...current, remaining: 0, reason: 'paused by the user' }
+    : { ...STEP, reason: 'paused by the user' })
+  return 'Paused continuation. The current task may finish; continue after it ends.'
+}
+
 const prompts = {
   plan: (id: number) =>
-    `[milestone] plan #${id}\nFollow the milestone skill: read .goals/${id}.md and propose a description, acceptance criteria, an approach and a split (sub-goals or tasks, one of the two). This stage is read-only; call mcp__milestone__plan_goal only after the user clearly confirms.`,
+    `[milestone] plan #${id}\nFollow the milestone skill: read goal #${id} from the project data and propose a description, acceptance criteria, an approach and a split (sub-goals or tasks, one of the two). This stage is read-only; call mcp__milestone__plan_goal only after the user clearly confirms.`,
   run: (id: number, n: number) =>
     `[milestone] run #${id} T${n}\nFollow the milestone skill: do this one task only. Call mcp__milestone__start_task first; when done, check it against its acceptance, call mcp__milestone__finish_task only if it passes, then report and end the turn.`,
   add: (id: number, text: string) =>
@@ -172,14 +202,27 @@ const readyHint = (pool: Pool, id: number): string => {
 const FAILED = { text: 'The command failed; run claude --debug to see why' }
 const TOOL_FAILED = { deny: 'milestone: the tool failed internally; tell the user to run claude --debug to see why' }
 
-const runNext = async ($: $, remaining: number): Promise<{ text: string }> => {
+const runNext = async ($: $, remaining: number, expectedRun?: string): Promise<{ text: string }> => {
   const pool = await refresh($)
   const active = M.activeGoal(pool)
   if (!active) return { text: 'No active goal; /ms-focus <goal> first' }
   const t = M.nextTask(active)
   if (!t) return { text: `#${active.id} has no task left` }
-  await update($, autoAtom, () => ({ remaining, pending: { goal: active.id, task: t.n } }))
-  submit($, prompts.run(active.id, t.n))
+  const runId = crypto.randomUUID()
+  let scheduled = false
+  await update($, autoAtom, current => {
+    if (current.pending !== null || (expectedRun !== undefined && current.runId !== expectedRun)) return current
+    scheduled = true
+    return { remaining, pending: { goal: active.id, task: t.n }, runId }
+  })
+  if (!scheduled) return { text: 'A task is already scheduled or running; wait for it to finish before starting another run' }
+  $.clock.after(0, () => {
+    void (async () => {
+      if ((await read($, autoAtom)).runId !== runId) return
+      const response = await $.prompt.submit({ text: `${prompts.run(active.id, t.n)}\n[milestone-run:${runId}]` })
+      if (response.drop !== undefined) await stopAuto($, 'the task prompt was not accepted', runId)
+    })().catch(async () => { await stopAuto($, 'could not submit the task prompt', runId) })
+  })
   return { text: `Starting #${active.id} T${t.n} ${t.title}` }
 }
 
@@ -204,6 +247,16 @@ const int = (e: Input, k: string): number | undefined => {
   if (typeof v === 'string') return M.parseRef(v)
   return undefined
 }
+
+const controlRun = async ($: $, e: Input): Promise<{ deny: string } | { result: string }> => {
+  const action = str(e, 'action')
+  if (action !== 'next' && action !== 'continue' && action !== 'pause') return { deny: 'action must be next, continue or pause' }
+  if (action !== 'continue' && e.count !== undefined) return { deny: 'count is only valid for continue' }
+  const count = e.count === undefined ? -1 : int(e, 'count')
+  if (count === undefined) return { deny: 'count must be a positive integer' }
+  if (action === 'pause') return { result: await pauseRun($) }
+  return { result: (await runNext($, action === 'next' ? 0 : count)).text }
+}
 const list = <T,>(e: Input, k: string, pick: (x: Input) => T | undefined): T[] | undefined => {
   const v = e[k]
   if (v === undefined) return undefined
@@ -223,6 +276,18 @@ const ID = { type: 'integer', minimum: 1, description: 'Goal number, e.g. 12' }
 const TASK_NO = { type: 'integer', minimum: 1, description: 'Task number, e.g. 2 for T2' }
 
 const TOOLS = [
+  {
+    name: 'control_run',
+    description: 'Start the next task, continue tasks, or pause continuation after the current task. Call only when the user asks to run, continue or pause. A running task may finish after pause. Do not execute a second task yourself after scheduling a run.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['next', 'continue', 'pause'] },
+        count: { type: 'integer', minimum: 1, description: 'Optional task limit for continue; omitted means all remaining tasks' },
+      },
+      required: ['action'],
+    },
+  },
   {
     name: 'create_goal',
     description:
@@ -314,6 +379,7 @@ const COMMANDS = [
   { name: 'ms-focus', description: 'Make a goal the active one', argumentHint: '<goal>' },
   { name: 'ms-next', description: "Run the active goal's next task" },
   { name: 'ms-auto', description: 'Run tasks one after another, stopping at the first failure', argumentHint: '[n|all]' },
+  { name: 'ms-pause', description: 'Stop continuation after the current task', immediate: true },
   { name: 'ms-skip', description: 'Skip the current task' },
   { name: 'ms-add', description: 'Ask Claude to propose a new task', argumentHint: '<description>' },
   { name: 'ms-done', description: 'Complete a goal', argumentHint: '[goal]' },
@@ -406,6 +472,10 @@ export const register: Register = on => {
 
   on('command.run', { command: 'ms-next' }, async $ => runNext($, 0)).catch(() => FAILED)
 
+  on('command.run', { command: 'ms-pause' }, async $ => {
+    return { text: await pauseRun($) }
+  }).catch(() => FAILED)
+
   on('command.run', { command: 'ms-auto' }, async ($, e) => {
     const arg = e.args.trim()
     const n = arg === '' || arg === 'all' ? -1 : /^[1-9][0-9]*$/.test(arg) ? Number(arg) : undefined
@@ -462,6 +532,10 @@ export const register: Register = on => {
   }).catch(() => FAILED)
 
   // ---- tools Claude calls ----
+
+  on('tool.call', { tool: 'mcp__milestone__control_run' }, ($, e) =>
+    controlRun($, { action: e.action, count: e.count }),
+  ).catch(() => TOOL_FAILED)
 
   on('tool.call', { tool: 'mcp__milestone__create_goal' }, async ($, e) => {
     const title = str(e, 'title')
@@ -546,37 +620,39 @@ export const register: Register = on => {
 
   // ---- auto mode ----
 
+  on('turn.start', async ($, e, next) => {
+    if (e.agentId !== undefined) return next(e)
+    const auto = await read($, autoAtom)
+    if (!auto.pending) return next(e)
+    if (!auto.runId || !e.text.includes(`[milestone-run:${auto.runId}]`)) {
+      await stopAuto($, 'a different turn started', auto.runId)
+      return next(e)
+    }
+    await update($, autoAtom, current =>
+      current.runId === auto.runId && current.pending && current.pending.turnId === undefined
+        ? { ...current, pending: { ...current.pending, turnId: e.turnId } }
+        : current,
+    )
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
     if (e.agentId !== undefined) return next(e)
     const auto = await read($, autoAtom)
-    if (auto.pending === null) return next(e)
-    const { goal: id, task: n } = auto.pending
-    const isAuto = auto.remaining !== 0
-    await update($, autoAtom, () => ({ ...auto, pending: null }))
-    if (!isAuto) return next(e)
-
-    if (e.reason !== 'answer') {
-      await stopAuto($, e.reason === 'aborted' ? 'the turn was interrupted' : 'the turn failed')
-      return next(e)
-    }
-    const pool = await refresh($)
-    const goal = pool.goals.find(g => g.id === id)
-    const t = goal?.tasks.find(x => x.n === n)
-    if (goal?.status === 'done') {
-      await stopAuto($, `all tasks of ${goal.title} ended; the goal is done`)
-    } else if (!goal || goal.status !== 'active') {
-      await stopAuto($, `${goal?.title ?? 'the goal'} is no longer the active goal`)
-    } else if (t?.mark !== 'x') {
-      await stopAuto($, `T${n} was not finished`)
-    } else {
-      const remaining = auto.remaining < 0 ? -1 : auto.remaining - 1
-      const following = M.nextTask(goal)
-      if (!following) await stopAuto($, `${goal.title} has no task left`)
-      else if (remaining === 0) await stopAuto($, 'no runs left')
-      else {
-        await update($, autoAtom, () => ({ remaining, pending: { goal: id, task: following.n } }))
-        submit($, prompts.run(id, following.n))
-      }
+    if (auto.pending?.turnId !== e.turnId) return next(e)
+    let claimed = false
+    await update($, autoAtom, current => {
+      if (current.runId !== auto.runId || current.pending?.turnId !== e.turnId) return current
+      claimed = true
+      return { ...current, pending: null }
+    })
+    if (!claimed) return next(e)
+    try {
+      const decision = M.afterTurn(await refresh($), auto, e.turnId, e.reason)
+      if (decision.kind === 'stop') await stopAuto($, decision.reason, auto.runId)
+      else if (decision.kind === 'next') await runNext($, decision.remaining, auto.runId)
+    } catch {
+      await stopAuto($, 'could not read task progress; refresh before continuing', auto.runId)
     }
     return next(e)
   })
@@ -590,7 +666,15 @@ export const register: Register = on => {
       project: await read($, projectAtom),
       canDrag: !(await read($, treeFailedAtom)),
     }
-    return paneTree($.ui.resolve(e), e.surface, data)
+    const run = async (remaining: number) => {
+      try { $.ui.toast((await runNext($, remaining)).text, { timeoutMs: 8000 }) }
+      catch { $.ui.toast('Could not start the task; refresh and try again', { timeoutMs: 8000 }) }
+    }
+    return paneTree($.ui.resolve(e), e.surface, data, {
+      step: () => { void run(0) },
+      auto: () => { void run(-1) },
+      pause: () => { void pauseRun($).catch(() => $.ui.toast('Could not pause continuation', { timeoutMs: 8000 })) },
+    })
   })
 
   // A drop in the tree: the Client posts { move, before }, checked here like any tool input.

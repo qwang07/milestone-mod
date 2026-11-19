@@ -1,1 +1,6 @@
 .serena/
+
+node_modules/
+/.archify/
+/.milestone-runtime/
+/.goals/progress.milestone

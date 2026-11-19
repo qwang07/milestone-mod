@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 
-import * as M from '../hooks/model'
+import * as M from '../core/model'
 import type { Goal, Pool } from '../types'
 
 const goal = (over: Partial<Goal> & { id: number }): Goal => ({

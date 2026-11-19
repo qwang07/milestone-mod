@@ -24,9 +24,21 @@ export type FileError = { file: string; reason: string }
 export type Pool = { goals: Goal[]; errors: FileError[] }
 
 /** auto mode: how many more tasks to run (-1 = all), and the task the last prompt asked for. */
-export type Auto = { remaining: number; pending: { goal: number; task: number } | null }
+export type Auto = {
+  remaining: number
+  pending: { goal: number; task: number; turnId?: string } | null
+  runId?: string
+  reason?: string
+}
 
 declare module 'claude-code' {
+  interface McpToolInputs {
+    mcp__milestone__control_run: {
+      action: 'next' | 'continue' | 'pause'
+      count?: number
+    }
+  }
+
   interface PluginState {
     /** treeFailed: the panel's drag-and-drop tree failed on a surface this session; plain rows are drawn instead. */
     milestone: { pool: Pool; auto: Auto; project: string; treeFailed: boolean }

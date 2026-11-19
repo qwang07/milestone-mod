@@ -5,11 +5,12 @@ description: The project goal pool protocol. Use when the user brings up a new p
 
 # milestone protocol
 
-The project's goals live in `.goals/<id>.md`. Issues, goals and milestones are all "goals"; a goal is split one of two ways: into sub-goals, or into tasks.
+The project's goals live in `.goals/project.json` after migration (older projects use `.goals/<id>.md`). Issues, goals and milestones are all "goals"; a goal is split one of two ways: into sub-goals, or into tasks.
 
 ## Ground rules
 
 - **Change goals only through the tools**: `mcp__milestone__create_goal`, `plan_goal`, `focus_goal`, `move_goal`, `start_task`, `finish_task`, `add_task`. Don't edit files under `.goals/` with Edit/Write, and don't track these goals' tasks with TaskCreate/TodoWrite. Reading the files is fine.
+- Use `control_run` when the user asks to run the next task, continue, or pause. Use action `next`, `continue`, or `pause`. Set `count` only for a requested continuation limit. The tool schedules execution; report the result and end the turn. Let the scheduled turn execute the task. Pause stops continuation after an already submitted task ends.
 - When a tool refuses, tell the user the reason as given; don't work around it.
 - Talking to the user, name a goal by its title; the panel and `/ms-status` show no numbers. Numbers stay for tool calls and commit messages.
 - One task per turn: move one task forward each turn, and end the turn when it is done.
@@ -25,6 +26,7 @@ The user types these slash commands; they don't take your turn. When you suggest
 | `/ms-focus <goal>` | Make a planned goal that is split into tasks the active goal |
 | `/ms-next` | Ask you to run the active goal's next task |
 | `/ms-auto [n\|all]` | Run tasks one after another, stopping at the first failure |
+| `/ms-pause` | Stop continuation after the current task |
 | `/ms-skip` | Skip the current task |
 | `/ms-add <description>` | Ask you to propose a new task |
 | `/ms-done [goal]` | Complete a goal split into sub-goals (a goal split into tasks completes when its last task ends) |
@@ -41,8 +43,8 @@ When the user brings up a new problem or a goal with several steps: record it wi
 
 ## Planning (`[milestone] plan #N`, or the user asks for a plan)
 
-1. Read `.goals/N.md` and the code involved. This stage is **read-only**: call no tool that changes a file.
-2. Propose: a description, acceptance criteria (checkable), an approach, the decisions made, and a split: into tasks (each with a title and an acceptance) or into sub-goals. Name the risks and the open questions.
+1. Read goal N from the project data and the code involved. This stage is **read-only**: call no tool that changes a file.
+2. Propose a description, checkable acceptance criteria, an approach and the decisions made. Split new goals into tasks with a title and an acceptance for each task. Preserve existing sub-goal structures. Name the risks and the open questions.
 3. Revise with the user until they **clearly confirm**. No `plan_goal` without that confirmation.
 4. Once confirmed, call `plan_goal`. For a split into tasks, tell the user to say "start #N" or send `/ms-focus N`; for a split into sub-goals, tell them to `/ms-plan` each sub-goal.
 

@@ -2,12 +2,14 @@ import { describe, expect, mock, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 let settle: () => Promise<void> = async () => {}
+let currentTurn = 't'
+let turnSequence = 0
 
 const ROOT = '/proj'
 const DIR = `${ROOT}/.goals`
 
 /** A project folder in memory, plus records of what the plugin asked the session to do. */
-const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
+const world = (engine: any, on: On, seed: Record<string, string> = {}, placed = true) => {
   const files = new Map<string, { text: string; mtimeMs: number }>()
   let tick = 1
   for (const [name, text] of Object.entries(seed)) files.set(`${DIR}/${name}`, { text, mtimeMs: tick++ })
@@ -50,10 +52,13 @@ const world = (on: On, seed: Record<string, string> = {}, placed = true) => {
     files.set(e.path, { text: e.text, mtimeMs: tick++ })
     return { value: undefined }
   })
-  on('prompt.submit', ($, e) => {
+  on('prompt.submit', async ($, e) => {
     prompts.push(e.text)
+    currentTurn = `run-${++turnSequence}`
+    await engine.turn.start({ text: e.text, turnId: currentTurn })
     return { text: e.text }
   })
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
   on('ui.toast', ($, e) => {
     toasts.push(e.text)
     return { value: undefined }
@@ -98,7 +103,7 @@ const run = async ($: any, command: string, args = '') => {
 const call = async ($: any, name: string, input: Record<string, unknown>) => $.tool.call({ tool: `mcp__milestone__${name}`, ...input })
 
 const turnDone = async ($: any, reason: 'answer' | 'aborted' | 'error' = 'answer') => {
-  await $.turn.complete({ answer: '', durationMs: 1, isAborted: reason === 'aborted', turnId: 't', reason })
+  await $.turn.complete({ answer: '', durationMs: 1, isAborted: reason === 'aborted', turnId: currentTurn, reason })
   await settle()
 }
 
@@ -126,7 +131,7 @@ const doTask = async ($: any, n: number) => {
 
 describe('commands and tools', () => {
   test('/ms-new writes .goals/1.md as an idea', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     expect(await run($, 'ms-new', '性能问题')).toBe('Recorded #1 性能问题')
     expect(w.text(1)).toContain('status: idea')
@@ -136,7 +141,7 @@ describe('commands and tools', () => {
   })
 
   test('commands name a goal by part of its title', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await run($, 'ms-new', 'CSV export')
     await run($, 'ms-new', 'CSV import')
@@ -150,7 +155,7 @@ describe('commands and tools', () => {
   })
 
   test('move_goal reorders siblings in the files, and /ms-status follows', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     for (const t of ['甲', '乙', '丙']) await run($, 'ms-new', t)
     expect((await call($, 'move_goal', { id: 3, before: 1 })).result).toBe('Moved #3 丙 before #1')
@@ -163,7 +168,7 @@ describe('commands and tools', () => {
   })
 
   test('/ms-plan marks planning and asks Claude for a proposal', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await run($, 'ms-new', '导出')
     await run($, 'ms-plan', '#1')
@@ -172,7 +177,7 @@ describe('commands and tools', () => {
   })
 
   test('a full pass: plan, focus, run each task; the last one completes the goal', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     expect(w.text(1)).toContain('status: active')
@@ -188,7 +193,7 @@ describe('commands and tools', () => {
   })
 
   test('the last task ending completes a child and points to its parent', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await run($, 'ms-new', '父')
     await call($, 'plan_goal', { id: 1, acceptance: '都做完', approach: '拆开', split: 'goals', goals: [{ title: '子' }] })
@@ -200,7 +205,7 @@ describe('commands and tools', () => {
   })
 
   test('tools refuse what the rules forbid, with the reason', async ($, on) => {
-    world(on)
+    world($, on)
     await start($)
     await planned($)
     await call($, 'start_task', { id: 1, task: 1 })
@@ -211,7 +216,7 @@ describe('commands and tools', () => {
   })
 
   test('/ms-skip marks the current task skipped', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     expect(await run($, 'ms-skip')).toBe('#1 T1 skipped; 2 left')
@@ -222,7 +227,7 @@ describe('commands and tools', () => {
   })
 
   test('/ms-add asks Claude to propose and changes nothing yet', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     const before = w.text(1)
@@ -234,14 +239,14 @@ describe('commands and tools', () => {
   })
 
   test('/ms-status lists the tree', async ($, on) => {
-    world(on)
+    world($, on)
     await start($)
     await planned($)
     expect(await run($, 'ms-status')).toBe('CSV 导出 · 1/3\n\nActive: CSV 导出\n  [ ] T1 字段\n  [ ] T2 写出\n  [ ] T3 编码')
   })
 
   test('focus_goal makes a planned goal active, sends the old one back and stops auto', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await run($, 'ms-new', '导入')
@@ -260,7 +265,7 @@ describe('commands and tools', () => {
   })
 
   test('focus_goal refuses what /ms-focus refuses', async ($, on) => {
-    const w = world(on, { '9.md': 'not a goal' })
+    const w = world($, on, { '9.md': 'not a goal' })
     await start($)
     await run($, 'ms-new', '想法')
     await run($, 'ms-new', '大目标')
@@ -275,8 +280,91 @@ describe('commands and tools', () => {
 })
 
 describe('auto', () => {
+  test('pause cancels a task prompt before deferred submission', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    await $.command.run({ command: 'ms-auto', args: '' } as any)
+    await $.command.run({ command: 'ms-pause', args: '' } as any)
+    await settle()
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(0)
+    expect(w.text(1)).not.toContain('[~]')
+    await run($, 'ms-next')
+    expect(w.prompts.at(-1)).toMatch(/run #1 T1/)
+  })
+
+  test('pause lets the current task finish and resumes only on request', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    await run($, 'ms-auto')
+    await run($, 'ms-pause')
+    expect(await run($, 'ms-next')).toMatch(/already scheduled or running/)
+    await doTask($, 1)
+    await turnDone($)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(1)
+    await run($, 'ms-next')
+    expect(w.prompts.at(-1)).toMatch(/run #1 T2/)
+    await doTask($, 2)
+    await turnDone($)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(2)
+  })
+
+  test('duplicate completion cannot consume the following task turn', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    await run($, 'ms-auto')
+    const firstTurn = currentTurn
+    await doTask($, 1)
+    await turnDone($)
+    await $.turn.complete({ answer: '', durationMs: 1, isAborted: false, turnId: firstTurn, reason: 'answer' })
+    await settle()
+    await doTask($, 2)
+    await turnDone($)
+    expect(w.prompts.at(-1)).toMatch(/run #1 T3/)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(3)
+  })
+
+  test('repeated run requests submit only one task prompt', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    await run($, 'ms-auto')
+    expect(await run($, 'ms-auto')).toMatch(/already scheduled or running/)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(1)
+  })
+
+  test('a different user turn stops continuation', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    await run($, 'ms-auto')
+    await $.turn.start({ text: 'Let us discuss something else', turnId: 'user-turn' })
+    await doTask($, 1)
+    await turnDone($)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(1)
+    expect(w.toasts.at(-1)).toMatch(/different turn/)
+  })
+
+  test('run control tools support a limit and reject incompatible input', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    expect((await call($, 'control_run', { action: 'next', count: 2 })).deny).toMatch(/only valid for continue/)
+    await call($, 'control_run', { action: 'continue', count: 1 })
+    await settle()
+    await doTask($, 1)
+    await turnDone($)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(1)
+    await call($, 'control_run', { action: 'pause' })
+    const ui = await mountPane($, 'desktop')
+    expect(await ui.find({ type: 'Text', text: /paused by the user/ })).toBeDefined()
+    await ui.unmount()
+  })
+
   test('auto runs the next task after each finished one and stops at the count', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await run($, 'ms-auto', '2')
@@ -291,7 +379,7 @@ describe('auto', () => {
   })
 
   test('auto stops when the task did not finish', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await run($, 'ms-auto')
@@ -303,7 +391,7 @@ describe('auto', () => {
   })
 
   test('auto stops when the turn was interrupted', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await run($, 'ms-auto')
@@ -314,7 +402,7 @@ describe('auto', () => {
   })
 
   test('auto stops after the last task, the goal done', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await run($, 'ms-auto', 'all')
@@ -329,7 +417,7 @@ describe('auto', () => {
   })
 
   test('step mode never continues on its own', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await run($, 'ms-next')
@@ -347,7 +435,7 @@ describe('sessions and safety', () => {
         '## 描述', '## 验收标准', '## 方案', '## 已定决策', '## Tasks', '- [x] T1 | a | 验收: b', '- [ ] T2 | c | 验收: d', '',
       ].join('\n'),
     }
-    const w = world(on, seed)
+    const w = world($, on, seed)
     await start($)
     expect(w.opened).toHaveLength(1)
     expect(w.prompts).toHaveLength(0)
@@ -356,7 +444,7 @@ describe('sessions and safety', () => {
   const ACTIVE = { '1.md': ['---', 'id: 1', 'title: 导出', 'status: active', 'parent: ', 'split: tasks', 'created: d', '---', '## Tasks', '- [ ] T1 | a | 验收: b', ''].join('\n') }
 
   test('a -p run with an active goal stays quiet', async ($, on) => {
-    const w = world(on, ACTIVE)
+    const w = world($, on, ACTIVE)
     await start($, false)
     expect(await run($, 'ms-status')).toContain('导出 · 1/1')
     expect(w.prompts).toHaveLength(0)
@@ -364,7 +452,7 @@ describe('sessions and safety', () => {
   })
 
   test('a session with no surface at start opens the panel once, when the first one attaches', async ($, on) => {
-    const w = world(on, ACTIVE)
+    const w = world($, on, ACTIVE)
     await start($, false)
     expect(w.opened).toHaveLength(0)
     await attach($, 'desktop')
@@ -375,7 +463,7 @@ describe('sessions and safety', () => {
   })
 
   test('a session already drawing at start opens the panel once, and not again on a later attach', async ($, on) => {
-    const w = world(on, ACTIVE)
+    const w = world($, on, ACTIVE)
     w.surfaces.push('desktop')
     await start($, false)
     expect(w.opened).toHaveLength(1)
@@ -388,20 +476,20 @@ describe('sessions and safety', () => {
     const seed = {
       '1.md': ['---', 'id: 1', 'title: 导出', 'status: active', 'parent: ', 'split: tasks', 'created: d', '---', '## Tasks', '- [ ] T1 | a | 验收: b', ''].join('\n'),
     }
-    const w = world(on, seed, false)
+    const w = world($, on, seed, false)
     await start($)
     expect(w.toasts.at(-1)).toMatch(/\/ms-panel/)
   })
 
   test('command replies carry no plugin prefix of their own', async ($, on) => {
-    world(on)
+    world($, on)
     await start($)
     expect(await run($, 'ms-plan', '')).toBe('Name a goal, e.g. /ms-plan 12 or /ms-plan part of its title')
     expect(await run($, 'ms-focus', '9')).toBe('no goal #9')
   })
 
   test('the plugin only touches the project root and .goals/<digits>.md', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await planned($)
     await doTask($, 1)
@@ -410,7 +498,7 @@ describe('sessions and safety', () => {
   })
 
   test('a broken file is reported and left alone', async ($, on) => {
-    const w = world(on, { '3.md': 'not a goal' })
+    const w = world($, on, { '3.md': 'not a goal' })
     await start($)
     expect(await run($, 'ms-status')).toContain('Cannot read 3.md')
     expect(await run($, 'ms-focus', '3')).toMatch(/cannot be read/)
@@ -418,7 +506,7 @@ describe('sessions and safety', () => {
   })
 
   test('edits from another session show up after the poll', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await run($, 'ms-new', '甲')
     w.files.set(`${DIR}/1.md`, { text: w.text(1).replace('title: 甲', 'title: 乙'), mtimeMs: 999 })
@@ -436,8 +524,27 @@ const treeTexts = async (ui: any): Promise<string[]> =>
   (await ui.findAll({ type: 'Text', in: 'tree' })).map((x: any) => x.text).filter((t: string) => /[·?○▶✓]/.test(t))
 
 describe('panel', () => {
+  test('panel buttons run, pause, show the stop reason and resume', async ($, on) => {
+    const w = world($, on)
+    await start($)
+    await planned($)
+    const ui = await mountPane($, 'desktop')
+    await ui.press({ key: 'run-auto' })
+    await settle()
+    expect(w.prompts.at(-1)).toMatch(/run #1 T1/)
+    await ui.press({ key: 'run-pause' })
+    await doTask($, 1)
+    await turnDone($)
+    expect(w.prompts.filter(p => p.startsWith('[milestone] run'))).toHaveLength(1)
+    expect(await ui.find({ type: 'Text', text: /ready for the next task/ })).toBeDefined()
+    await ui.press({ key: 'run-step' })
+    await settle()
+    expect(w.prompts.at(-1)).toMatch(/run #1 T2/)
+    await ui.unmount()
+  })
+
   test('the panel shows the tree and the active goal on terminal and desktop', async ($, on) => {
-    world(on)
+    world($, on)
     await start($)
     await planned($)
     await call($, 'start_task', { id: 1, task: 1 })
@@ -454,7 +561,7 @@ describe('panel', () => {
   })
 
   test('a surface with no Client draws the tree as plain rows', async ($, on) => {
-    world(on)
+    world($, on)
     await start($)
     await planned($)
     const ui = await mountPane($, 'mobile')
@@ -463,7 +570,7 @@ describe('panel', () => {
   })
 
   test('the pointer on a row shows its handle; dragging moves it among its siblings', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     for (const t of ['甲', '乙', '丙']) await run($, 'ms-new', t)
     const ui = await mountPane($, 'terminal')
@@ -481,7 +588,7 @@ describe('panel', () => {
   })
 
   test('a drag never leaves its sibling group, and a drop where it started changes nothing', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     await run($, 'ms-new', '父')
     for (const t of ['子一', '子二']) await run($, 'ms-new', `${t} --under 父`)
@@ -506,7 +613,7 @@ describe('panel', () => {
   })
 
   test('a post that is not a move is ignored', async ($, on) => {
-    const w = world(on)
+    const w = world($, on)
     await start($)
     for (const t of ['甲', '乙']) await run($, 'ms-new', t)
     const ui = await mountPane($, 'terminal')

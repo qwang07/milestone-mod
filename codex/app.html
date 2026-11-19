@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Milestone</title>
+<style>
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --space-1: .25rem;
+  --space-2: .5rem;
+  --space-3: .75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --gutter: clamp(1rem, 5vw, 1.5rem);
+  --ink: light-dark(#1d1d1f, #f5f5f7);
+  --muted: light-dark(#6e6e73, #a1a1a6);
+  --line: light-dark(#e5e5ea, #343438);
+  --blue: light-dark(#0066d6, #64aaff);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  padding: var(--space-5) var(--gutter);
+  color: var(--ink);
+  background: var(--color-background-primary, light-dark(#fafafa, #1c1c1e));
+  font-size: .875rem;
+  line-height: 1.5;
+}
+h1 { margin: 0 0 var(--space-5); font-size: 1.125rem; line-height: 1.5; font-weight: 600; letter-spacing: -.02em; overflow-wrap: anywhere; }
+p, ul { margin: 0; }
+ul { list-style: none; padding: 0; }
+.label, .muted { color: var(--muted); }
+.label { font-size: .75rem; line-height: 1.5; font-weight: 500; }
+.goal-heading { font-size: 1.375rem; line-height: 1.4; font-weight: 600; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.goal-details { margin-top: var(--space-2); }
+.goal-details > summary { min-block-size: 0; padding: 0; }
+.goal-details > .detail-body { padding: var(--space-3) 0 0; }
+.progress-row { display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline; margin: var(--space-4) 0 var(--space-2); font-size: .8125rem; color: var(--muted); }
+#goal-status { color: var(--blue); font-weight: 500; }
+#progress-text { font-variant-numeric: tabular-nums; }
+progress { display: block; appearance: none; width: 100%; height: 4px; border: 0; border-radius: 4px; overflow: hidden; background: var(--line); accent-color: var(--blue); }
+progress::-webkit-progress-bar { background: var(--line); }
+progress::-webkit-progress-value { background: var(--blue); border-radius: 4px; }
+progress::-moz-progress-bar { background: var(--blue); border-radius: 4px; }
+#reason { margin-top: var(--space-3); font-size: .8125rem; color: var(--muted); overflow-wrap: anywhere; }
+#tasks { margin-top: var(--space-4); }
+li { border-bottom: 1px solid var(--line); }
+li:last-child { border-bottom: 0; }
+summary { cursor: pointer; list-style: none; display: flex; gap: var(--space-3); align-items: baseline; min-block-size: 3.5rem; padding-block: var(--space-4); }
+summary::-webkit-details-marker { display: none; }
+summary:focus-visible, button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 4px; }
+.task-icon { width: 1.25rem; flex-shrink: 0; color: var(--muted); text-align: center; line-height: 1; }
+.task-title, .goal-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.task-state { font-size: .75rem; line-height: 1.5; flex-shrink: 0; color: var(--muted); }
+.finished .task-title { color: var(--muted); }
+.current { background: light-dark(#edf4ff, #23334a); border-radius: .75rem; border-bottom-color: transparent; margin-inline: calc(-1 * var(--space-3)); padding-inline: var(--space-3); }
+.current .task-icon, .current .task-state { color: var(--blue); }
+.current .task-title { font-weight: 600; }
+.detail-body { font-size: .8125rem; line-height: 1.65; color: var(--muted); padding: 0 0 var(--space-4) 2rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail-body p { margin-top: var(--space-2); }
+/* Goal details have no status icon; only task details use the icon indent. */
+.goal-row > details > .detail-body { padding-inline-start: 0; }
+.detail-body ul { margin-top: var(--space-3); white-space: normal; }
+.detail-body .task-title { color: var(--ink); }
+section.secondary, #archive { border-top: 1px solid var(--line); padding-top: var(--space-4); margin-top: var(--space-5); }
+.secondary ul { margin-top: var(--space-2); }
+#archive > summary { color: var(--muted); min-block-size: 2.75rem; padding-block: var(--space-2); font-size: .8125rem; align-items: center; }
+#archive > summary::after { content: '›'; margin-inline-start: auto; }
+#archive[open] > summary::after { content: '⌄'; }
+#archived-goals { margin-top: var(--space-2); }
+footer { margin-top: var(--space-5); font-size: .75rem; line-height: 1.5; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+button { font: inherit; border: 0; background: none; color: var(--blue); cursor: pointer; min-block-size: 2.75rem; padding: var(--space-2); }
+#errors { margin-top: var(--space-4); color: light-dark(#b42318, #ff9b94); white-space: pre-wrap; overflow-wrap: anywhere; font-size: .8125rem; }
+#errors:empty { display: none; }
+@media (max-width: 359px) {
+  summary { gap: var(--space-2); }
+  .detail-body { padding-inline-start: 1.75rem; }
+}
+</style></head>
+<body data-sync-mode="tool-result-events">
+<h1 id="project-name">正在读取项目…</h1>
+<main>
+<p class="label" id="current-label">当前目标</p>
+<details class="goal-details" id="goal-details"><summary><span class="goal-heading" id="active">正在读取…</span></summary><div id="acceptance" class="detail-body"></div></details>
+<div class="progress-row"><span id="goal-status"></span><span id="progress-text"></span></div>
+<progress id="progress" aria-label="已完成任务数" max="1" value="0"></progress>
+<p id="reason" hidden></p>
+<ul id="tasks" aria-label="项目任务"></ul>
+<section class="secondary" id="other-section"><p class="label">其他目标</p><ul id="goals"></ul></section>
+<details id="archive"><summary id="archive-count">已完成的目标</summary><ul id="archived-goals"></ul></details>
+<p id="errors" role="alert"></p>
+</main>
+<footer><span id="status" role="status">正在连接…</span><button id="refresh" type="button" hidden>刷新</button></footer>
+<script type="module">/* APP_BUNDLE */</script>
+</body></html>

@@ -1,0 +1,378 @@
+{
+  "version": 1,
+  "goals": [
+    {
+      "id": 1,
+      "title": "验证第一版剩余事项：权限确认、双会话同步、新会话里的命令清单",
+      "status": "done",
+      "parent": null,
+      "order": 1,
+      "split": "tasks",
+      "created": "2026-10-11",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "第一版有几项只在自动化测试或代码层面确认过，要在真实会话里验证，并把结论写回文档。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "1. 权限确认：默认权限模式下，第一次调用 milestone 工具时会不会弹出确认，有明确结论；如果弹，README 里写明可以加的允许规则。\n2. 双会话同步：同一项目开两个会话，在其中一个里 /ms-new，另一个会话的面板在 5 秒内出现这个目标；测试用的目标随后 /ms-drop。\n3. 命令清单：在新会话里问 Claude 下一步怎么做，它给出准确的命令名（先 /ms-focus 再 /ms-next），不编造不存在的命令。\n4. 窄终端面板提示：有执行中的目标时，在不到 144 列宽的终端里重开会话，会弹出含 /ms-panel 的通知。\n5. 结论写回文档：VERIFY.md 新增「验证记录」一节，第 1–4 项各一行结论；README 里与结论不符的说法改正。"
+        },
+        {
+          "heading": "Approach",
+          "body": "每项验证都由用户在真实会话里操作（开第二个会话、切权限模式、重开会话），Claude 给出具体步骤，再读文件和终端输出核对结果；结论确认后再改文档。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "测试用的目标验证完就放弃，文件留在 .goals/ 不删除；提交 git 前先问用户；保留 T4（窄终端面板提示）；.serena/ 加入 .gitignore 不属于本目标，单独处理。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "验证首次调用工具是否弹权限确认",
+          "acceptance": "有弹或不弹的结论和证据；如果弹，README 安装节补上允许规则"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "验证双会话面板同步",
+          "acceptance": "第二个会话 /ms-new 后，本会话面板 5 秒内出现新目标；测试目标已放弃"
+        },
+        {
+          "n": 3,
+          "mark": "x",
+          "title": "验证新会话里 Claude 使用准确的命令",
+          "acceptance": "新会话的回答里包含 /ms-focus <目标> 和 /ms-next，没有编造的命令"
+        },
+        {
+          "n": 4,
+          "mark": "x",
+          "title": "验证窄终端下的面板提示",
+          "acceptance": "有执行中目标时，窄终端重开会话出现含 /ms-panel 的通知"
+        },
+        {
+          "n": 5,
+          "mark": "x",
+          "title": "把验证结论写进 VERIFY.md 和 README",
+          "acceptance": "VERIFY.md 有「验证记录」一节，T1–T4 各一行；README 没有与结论冲突的说法"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "同步测试（T2 用，稍后放弃）",
+      "status": "dropped",
+      "parent": null,
+      "order": 2,
+      "split": "",
+      "created": "2026-10-11",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": ""
+        },
+        {
+          "heading": "Acceptance",
+          "body": ""
+        },
+        {
+          "heading": "Approach",
+          "body": ""
+        },
+        {
+          "heading": "Decisions",
+          "body": ""
+        }
+      ],
+      "tasks": []
+    },
+    {
+      "id": 3,
+      "title": "无界面会话（claude -p）不触发开场汇报",
+      "status": "done",
+      "parent": null,
+      "order": 3,
+      "split": "tasks",
+      "created": "2026-10-11",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "claude -p 启动的会话在 session.start 时也会提交「[milestone] 恢复」提示：每次多跑一轮模型；且该轮 Claude 曾主动提出要把别的会话里正在执行的 task 标为完成。希望无界面会话不自动汇报。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "1. 有执行中目标时，claude -p \"/ms-status\" 只输出状态文字，不提交开场汇报，也不多跑一轮模型。\n2. 有执行中目标时，终端交互会话（claude）开始时照常开场汇报。\n3. 有执行中目标时，桌面版新会话照常开场汇报，而且只汇报一次。\n4. 同一会话里之后又有界面接入（例如手机远程连接），不会再汇报一次。\n5. claude plugin test 全过，并新增用例覆盖第 1、3、4 条的逻辑；validate 和 tsc 通过。\n6. README 写明：无界面会话不开场汇报。"
+        },
+        {
+          "heading": "Approach",
+          "body": "会话开始时，如果是交互会话（session.start 的 isInteractive 为 true），或者 $.session.surfaces() 已有界面在显示，就照现在的做法汇报并请求打开面板；否则先不汇报，等第一次 session.attach 时汇报一次、打开面板，之后再有界面接入不重复。claude -p 从头到尾没有界面接入，所以永远不会汇报。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "autoResume 开关含义不变，设为 false 时任何会话都不汇报；不加「等几秒没有界面就放弃」之类的超时逻辑；若 T3 发现桌面版既非交互会话也不触发界面接入事件，停下与用户商量。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "按有无界面决定开场汇报（代码 + 测试）",
+          "acceptance": "测试全过，新增用例覆盖 -p 不汇报、界面接入后汇报一次、再次接入不重复；validate、tsc 通过"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "更新 README 开场汇报的说明",
+          "acceptance": "写明无界面会话不汇报，有界面时汇报一次"
+        },
+        {
+          "n": 3,
+          "mark": "x",
+          "title": "真实环境验证",
+          "acceptance": "claude -p \"/ms-status\" 只输出状态文字；桌面版新会话出现一次开场汇报"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "会话开始不再自动请 Claude 汇报，改为用户主动查看",
+      "status": "done",
+      "parent": null,
+      "order": 4,
+      "split": "tasks",
+      "created": "2026-10-13",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "桌面版会回收长时间空闲的会话进程，再次点开时 session.start 重新触发，插件往已有上下文的对话里提交「[milestone] 恢复」提示，打断原来的对话。新会话也一样：桌面版的汇报出现在第一条消息之后，插在用户的问题前面。面板和 /ms-status（不经过模型）已经能提供进度，自动汇报只是多跑一轮模型。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "1. 有执行中目标时，任何会话（新建、恢复、终端、桌面）开始都不提交「[milestone] 恢复」提示，不多跑一轮模型。\n2. 有执行中目标、有界面时照常请求打开面板（放不下时弹提示）；claude -p 不开面板、不提示；同一会话之后再有界面接入不重复打开。\n3. 代码、plugin.json、测试、README、SKILL.md 里不再有 autoResume 和「恢复」提示。\n4. claude plugin test 全过，validate 和 tsc 通过。"
+        },
+        {
+          "heading": "Approach",
+          "body": "greet 只负责打开面板（打不开时弹 toast），删掉提交汇报这一步和 prompts.resume；删掉 autoResume 选项。保留「无界面时等第一次 session.attach 再开面板、只开一次」的逻辑。测试把汇报相关用例改成断言不提交任何提示、面板照常打开。README 改写开场一节：会话开始只打开面板，进度用面板或 /ms-status 查看；SKILL.md 删掉「恢复」一节和描述里的「跨会话恢复」。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "不新增命令，主动查看用已有的 /ms-status 和面板，想要 Claude 总结直接问；不去区分新会话和恢复会话；autoResume 直接删除，不保留兼容。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "去掉开场汇报和 autoResume（代码 + plugin.json + 测试）",
+          "acceptance": "register.tsx 不再有 prompts.resume、autoResume；plugin.json 不再有 autoResume；测试断言会话开始不提交提示、有界面时开面板、-p 不开、再次接入不重复；claude plugin test、validate、tsc 全过"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "更新 README 和 SKILL.md",
+          "acceptance": "README 开场一节写明会话开始只打开面板、进度用面板或 /ms-status 查看，提示列表去掉「恢复 #N」；SKILL.md 删掉恢复一节；grep 全仓（除 .goals/ 历史）不再有 autoResume 和「恢复 #」"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "用自然语言把目标设为执行中（新增 focus_goal 工具）",
+      "status": "done",
+      "parent": null,
+      "order": 5,
+      "split": "tasks",
+      "created": "2026-10-14",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "现在把目标设为执行中只能用 /ms-focus 命令，用户说「开始 #N」时 Claude 没有工具可用，只能停下让用户手动敲命令。参照 plan_goal 的做法：新增 focus_goal 工具，效果和 /ms-focus 相同（原来执行中的目标退回「已计划」，停止进行中的 auto）；SKILL.md 规定只在用户明确要求开始或切换某个目标时调用，不能自行切换。/ms-focus 命令保留。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "1. 用户说「开始 #N」（N 已计划且拆成 tasks）时，Claude 调用 focus_goal 设为执行中，并在同一轮开始下一个 task；说「切到 #N」只切换，不开始 task。\n2. focus_goal 效果与 /ms-focus 一致：原执行中目标退回「已计划」；停止进行中的 auto（弹提示）；打开面板；拒绝情况（非已计划、拆成子目标、解析失败）原样返回拒绝原因。\n3. SKILL.md 规定只在用户明确要求开始或切换目标时调用 focus_goal，不能自行切换；README 工具表加上 focus_goal。\n4. 新增测试覆盖 focus_goal 成功、退回、停 auto、拒绝；claude plugin test、validate、tsc 全过。"
+        },
+        {
+          "heading": "Approach",
+          "body": "把 /ms-focus 命令的逻辑（focusGoal + stopAuto + 打开面板）抽成一个函数，命令和新工具 focus_goal 共用。工具描述写明「只在用户明确要求开始或切换某个目标时调用」，与 plan_goal 的写法一致。SKILL.md 新增「设为执行中」一节；「顺序」改为先设为执行中（用户说开始，或 /ms-focus）；「找方案」第 4 步改为告诉用户说开始或用 /ms-focus N。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "/ms-focus 保留，用于不经过模型直接切换；不在代码里额外拦截 Claude 自行切换，靠 SKILL.md 约束（同 plan_goal）；/ms-done、/ms-drop 这次不改。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "新增 focus_goal 工具，与 /ms-focus 共用逻辑（代码 + 测试）",
+          "acceptance": "新增测试覆盖成功、原目标退回、停 auto、拒绝；claude plugin test、validate、tsc 全过"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "更新 SKILL.md 和 README",
+          "acceptance": "SKILL.md 有「设为执行中」一节并写明只在用户明确要求时调用，顺序与找方案第 4 步已改；README 工具表有 focus_goal"
+        },
+        {
+          "n": 3,
+          "mark": "x",
+          "title": "真实环境验证",
+          "acceptance": "临时目录建已计划目标，claude -p 发「开始 #1」时 Claude 调用 focus_goal 并开始 T1；发「切到 #2」时只切换不开始 task"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "隐藏编号 + 同级顺序（说话调整 + 面板拖拽）",
+      "status": "done",
+      "parent": null,
+      "order": 7,
+      "split": "tasks",
+      "created": "2026-10-20",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "现在编号是全局自增的，同级子目标按编号排，等于按创建先后排。所以后补的子目标编号跳来跳去，顺序也没法按用户的意思排。编号只用作内部身份，面板和列表里不显示；新增明确的同级顺序，可以用自然语言让 Claude 调整，也可以在桌面和终端的面板里悬停出把手后拖拽。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "1. 新建的子目标排在同级最后；说「把 X 挪到 Y 前面」后，面板和 /ms-status 顺序随之改变并写入文件。\n2. 面板、/ms-status、toast 不显示 #N；斜杠命令的目标参数可写编号或标题片段，多个匹配时列出候选。\n3. 桌面和终端面板中悬停出现把手，可拖拽调整同级顺序，结果写入文件；手机和 VS Code 显示静态树。\n4. claude plugin test、validate、tsc 全过；桌面 app 真实拖拽验证通过。"
+        },
+        {
+          "heading": "Approach",
+          "body": "目标 frontmatter 加 order 字段；同级按 order 排，没有 order 的旧文件按编号排在后面，不需要迁移；新目标的 order 为同级最大值加一。新增工具 move_goal({ id, before? })，只能在同级之间挪，挪动时重写这一组同级的 order。面板、/ms-status 和 toast 去掉 #N；新增 resolveRef，按编号或唯一的标题片段找目标。面板的目标树改由 Client 模块绘制：悬停显示 ⠿，按住拖动时画插入线、限同级，松开后 post 给 hooks，由 ui.message 走 move_goal 同一套逻辑；没有 Client 的界面画静态树。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "拖拽只限同级，换父目标靠说话（本目标不做换父工具）。Claude 在聊天里以标题称呼目标；commit 信息和工具内部保留 #N。task 的 T1、T2 编号保留，它们本身就是连续的执行顺序。不新增调整顺序的斜杠命令。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "order 字段与 move_goal 工具",
+          "acceptance": "新建目标排在同级最后；move_goal 能在同级间挪动并写入文件，跨级或目标不存在时拒绝；旧文件无 order 时顺序不变；新增测试；claude plugin test、validate、tsc 全过"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "隐藏编号，命令参数可写标题片段",
+          "acceptance": "面板、/ms-status、toast 不含 #N；/ms-done 等命令可用标题片段，唯一匹配生效、多个匹配列出候选、无匹配给出原因；新增测试；三项检查全过"
+        },
+        {
+          "n": 3,
+          "mark": "x",
+          "title": "面板拖拽调整同级顺序",
+          "acceptance": "桌面和终端面板中悬停显示把手、拖拽只落在同级之间、松开后顺序写入文件；没有 Client 的界面画静态树；新增测试覆盖 ui.message 的挪动；三项检查全过"
+        },
+        {
+          "n": 4,
+          "mark": "x",
+          "title": "更新文档并真实环境验证",
+          "acceptance": "SKILL.md、README 说明 move_goal、标题引用和拖拽；claude -p 说「把 X 挪到 Y 前面」生效；桌面 app 中真实拖拽一次，截图确认顺序改变"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "面板英文化，状态列改成单一标签（idea / 1/3 / done）",
+      "status": "done",
+      "parent": null,
+      "order": 6,
+      "split": "tasks",
+      "created": "2026-10-20",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "面板右侧状态列现在是「完成 5/5」这种写法，会折行，显得拥挤。改成英文，让项目更通用。每个目标只显示一个标签：没有进度时显示状态词（idea、done 等）；有进度时显示「当前 task / 总数」，3/3 表示正在做最后一个 task；最后一个 task 完成后，目标本身变成 done，不再显示 done 3/3。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "1. 面板和 /ms-status 中每个目标右侧只有一个标签：idea / planning / planned；执行中显示 k/n（k 为进行中或下一个 task）；完成显示 done；拆成子目标的父目标只显示状态词。右侧标签不折行。\n2. 拆成 tasks 的目标，最后一个 task 结束（完成或跳过）后自动变为 done；/ms-done 只用于拆成子目标的父目标。\n3. 用户可见的全部内容为英文：面板、命令说明与回复、toast、工具描述与回复、SKILL.md、README、目标文件的小节标题。读取时新旧（中文）标题都认，写入时用英文。\n4. claude plugin test、validate、tsc 全过；真实环境验证通过。"
+        },
+        {
+          "heading": "Approach",
+          "body": "右侧标签由一个纯函数 labelOf(pool, goal) 算出，面板和 /ms-status 共用；面板右列不收缩、不折行，标题列截断。finish_task / skip 结束最后一个 task 时，在同一次写入里把目标设为 done，停 auto，照常给父目标提示。英文化：把字符串全部换成英文；SECTION 改英文标题，解析时把旧中文标题映射到英文，写入时只写英文。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "先做 #7 再做 #6。拆成子目标的父目标不显示进度，进度看子目标。最后一个 task 是跳过而结束的，也自动 done（与原 /ms-done 的「全部 task 已结束」判定一致）。SKILL.md 要求完成最后一个 task 前先对照整个目标的验收标准自检。旧文件不批量迁移，下次写入时自然换成英文标题。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "状态列改成单一标签并不折行",
+          "acceptance": "面板和 /ms-status 按规则显示 idea/planning/planned、k/n、done，父目标只显示状态词；右列不折行；新增测试覆盖各状态；claude plugin test、validate、tsc 全过"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "最后一个 task 结束时目标自动 done",
+          "acceptance": "finish_task 和 /ms-skip 结束最后一个 task 后目标为 done、auto 停止、父目标提示照常；/ms-done 对拆成 tasks 的目标仍可用但不再必需；SKILL.md 写明先对照目标验收自检；新增测试；三项检查全过"
+        },
+        {
+          "n": 3,
+          "mark": "x",
+          "title": "全部英文化，目标文件新旧标题都能读",
+          "acceptance": "面板、命令、toast、工具描述与回复、SKILL.md、README 为英文；中文小节标题的旧文件能读，写回后为英文标题；新增测试覆盖旧标题读取；三项检查全过"
+        },
+        {
+          "n": 4,
+          "mark": "x",
+          "title": "真实环境验证",
+          "acceptance": "claude -p 跑 /ms-status 输出符合标签规则且为英文；桌面 app 面板截图确认标签不折行、为英文"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "验证工具结果触发面板更新",
+      "status": "planning",
+      "parent": null,
+      "order": 8,
+      "split": "",
+      "created": "2026-11-17",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "仅用于本次实际面板事件验证，检查工具成功后无需点击刷新即可显示新目标。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": ""
+        },
+        {
+          "heading": "Approach",
+          "body": ""
+        },
+        {
+          "heading": "Decisions",
+          "body": ""
+        }
+      ],
+      "tasks": []
+    }
+  ],
+  "run": null,
+  "drafts": {
+    "8": {
+      "id": "5cd2076f-3067-4abc-9588-aee82e099d39",
+      "goal": 8,
+      "base": "---\nid: 8\ntitle: 验证工具结果触发面板更新\nstatus: planning\nparent: \norder: 8\nsplit: \ncreated: 2026-11-17\n---\n## Description\n仅用于本次实际面板事件验证，检查工具成功后无需点击刷新即可显示新目标。\n## Acceptance\n## Approach\n## Decisions\n",
+      "acceptance": "两个已打开的面板自动显示相同的新状态。",
+      "approach": "同一项目的两个窗口保持可见，从一个对话写入变更。",
+      "tasks": [
+        {
+          "title": "双查看器测试 · 白桃",
+          "acceptance": "两个窗口都在无需刷新或切换的情况下显示待确认。"
+        }
+      ],
+      "createdAt": "2026-11-18T04:47:30.034Z"
+    }
+  }
+}

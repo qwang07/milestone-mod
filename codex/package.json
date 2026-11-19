@@ -1,0 +1,20 @@
+{
+  "name": "milestone-codex",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "verify": "node verify.mjs",
+    "test": "node --test workflow.test.mjs events.test.mjs app.test.mjs",
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "esbuild": "0.28.2",
+    "zod": "4.6.7"
+  },
+  "version": "0.3.0"
+}

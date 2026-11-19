@@ -1,6 +1,8 @@
 # milestone
 
-A Claude Code plugin: a goal pool inside the project, in place of GitHub issues / milestones.
+Manage project goals, deliverables and progress. Let the conversation manage implementation steps. Share plain Markdown goals between Claude Mod and Codex adapters.
+
+Use the repository root for the Claude Mod installation. See [Codex setup and verification](codex/README.md) for the Codex MCP server and conversation panel. The Codex panel is read-only. The Claude adapter retains its legacy execution workflow. Cross-host write coordination remains unfinished.
 
 Record a goal, plan it with Claude, split it into sub-goals or tasks, then work through it one task at a time. Progress shows live in a side panel, and a new session picks up where the last one left off. The data is plain Markdown under the project's `.goals/`, so it can go into git.
 
@@ -24,6 +26,8 @@ Issues, goals and milestones are one thing here: a **goal**.
 | `dropped` | |
 
 ## Goal files
+
+Codex stores goals, drafts and execution records in `.goals/project.json` and generates `.goals/progress.milestone` for the viewer. The following Markdown layout applies to legacy projects before migration.
 
 One file per goal: `.goals/<id>.md`, where `id` is a positive integer; a new goal takes the highest one plus 1.
 
@@ -75,6 +79,7 @@ Commands take effect at once and don't take Claude's turn; those marked "starts 
 | `/ms-focus <goal>` | Make it active; the previously active goal goes back to planned | |
 | `/ms-next` | Run the active goal's next task (the `[~]` one first), then stop | starts a turn |
 | `/ms-auto [n\|all]` | Run n tasks one after another; all when n is left out | starts turns |
+| `/ms-pause` | Stop continuation after the current task | |
 | `/ms-skip` | Mark the current task skipped | |
 | `/ms-add <description>` | Ask Claude to propose a task; it is written only once you agree | starts a turn |
 | `/ms-done [goal]` | Complete a goal split into sub-goals; the active goal when none is named | |
@@ -95,6 +100,21 @@ Each turn runs one task. When a turn ends with that task `[x]`, runs left and ta
 
 The number of runs left lasts for the current session; a new session starts back in step mode.
 
+Use the panel's **Next task**, **Keep going** and **Pause after task** buttons to control execution.
+Ask Claude to run, continue or pause in natural language to use the same controls.
+Pause lets an already submitted task finish.
+Pause cancels a task prompt that has not been submitted.
+Wait for the current task to end before starting another run.
+The panel keeps the latest stop reason for the current session.
+Resume with Next task or Keep going.
+
+Each submitted task has a run identifier.
+The plugin binds that identifier to the task's model turn.
+Only completion of that turn can trigger continuation.
+A different user turn stops continuation.
+These checks coordinate one Claude session.
+Cross-process execution ownership remains unimplemented.
+
 ## Tools Claude uses
 
 Claude does not edit files under `.goals/` directly, only through the tools the plugin registers:
@@ -108,6 +128,7 @@ Claude does not edit files under `.goals/` directly, only through the tools the 
 | `mcp__milestone__start_task` | Mark one of the active goal's tasks `[~]` |
 | `mcp__milestone__finish_task` | Mark the `[~]` task `[x]`; called only after its check passes. The last task completes the goal, so its check covers the goal's acceptance criteria too |
 | `mcp__milestone__add_task` | Add a task; called only once you agree |
+| `mcp__milestone__control_run` | Schedule the next task, continue with an optional task limit, or pause after the current task |
 
 The prompts the plugin submits to Claude all start with `[milestone]`: `plan #N`, `run #N T<k>`, `add task #N: …`. The `milestone` skill (`skills/milestone/SKILL.md`) says what Claude does with each.
 
@@ -115,7 +136,7 @@ The prompts the plugin submits to Claude all start with `[milestone]`: `plan #N`
 
 The top half is the goal tree, by title alone; goal numbers are not shown. Each row has one label on the right: `idea`, `planning` or `planned` until the goal is active; `k/n` while it is active, k the task in progress or next (so `3/3` means the last task is under way); `done` once it is done. A goal split into sub-goals shows its status; its sub-goals show their own progress. The active goal is highlighted. The bottom half is the active goal's acceptance criteria and tasks. The panel rereads `.goals/` every 5 seconds, so several sessions on one project stay in sync.
 
-The order of goals under the same parent is yours to set: tell Claude ("move CSV export before Import", "put Import last"), or, in the terminal and the desktop app, drag it in the panel. The pointer on a row shows a `⠿` handle; press, drag and the row moves among its siblings as you go, its sub-goals with it; let go and the new order is written to the goal files. A drag stays within its sibling group; moving a goal under another parent is not supported. Other surfaces (the phone app) show the tree without dragging. Apart from that the panel only shows; it changes nothing.
+The order of goals under the same parent is yours to set: tell Claude ("move CSV export before Import", "put Import last"), or, in the terminal and the desktop app, drag it in the panel. The pointer on a row shows a `⠿` handle; press, drag and the row moves among its siblings as you go, its sub-goals with it; let go and the new order is written to the goal files. A drag stays within its sibling group; moving a goal under another parent is not supported. Other surfaces (the phone app) show the tree without dragging.
 
 When a session starts with an active goal, the plugin only asks for the panel to open and submits no prompt to Claude, so it never cuts into the conversation (a session reopened after a long idle included). Watch progress in the panel, or send `/ms-status` (no model involved); for a summary from Claude, just ask. It opens once per session, and only where there is an interface: an interactive terminal session, or one with an interface at its start, opens it at the start; any other session opens it when its first interface attaches, and not again on a later one (a phone connecting remotely, say). A headless session (`claude -p`, the SDK) never opens it. Claude Code places such a panel on its own only in a terminal at least 144 columns wide; where it doesn't fit, a notification says so, and `/ms-panel` opens it by hand at any width.
 

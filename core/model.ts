@@ -1,7 +1,7 @@
 // Goal files: parsing, serializing and the rules every change is checked against.
-// Pure functions only; reading and writing files lives in register.tsx.
+// Pure functions only; host adapters handle file access.
 
-import type { FileError, Goal, Mark, Pool, Section, Split, Status, Task } from '../types'
+import type { Auto, FileError, Goal, Mark, Pool, Section, Split, Status, Task } from '../types'
 
 export type { FileError, Goal, Mark, Pool, Section, Split, Status, Task }
 
@@ -539,4 +539,31 @@ export const statusText = (pool: Pool): string => {
   }
   for (const e of pool.errors) lines.push(`Cannot read ${e.file}: ${e.reason}`)
   return lines.join('\n')
+}
+
+// ---------- task continuation ----------
+
+export type TurnEnd = 'answer' | 'aborted' | 'error' | 'refusal'
+export type Continuation =
+  | { kind: 'ignore' }
+  | { kind: 'stop'; reason: string }
+  | { kind: 'next'; goal: number; task: number; remaining: number }
+
+/** Only the turn assigned to this run may advance it. */
+export const afterTurn = (pool: Pool, run: Auto, turnId: string, reason: TurnEnd): Continuation => {
+  const pending = run.pending
+  if (!pending || pending.turnId !== turnId) return { kind: 'ignore' }
+  const stop = (reason: string): Continuation => ({ kind: 'stop', reason })
+  if (reason !== 'answer') return stop(reason === 'aborted' ? 'the turn was interrupted' : 'the turn failed')
+  const goal = pool.goals.find(g => g.id === pending.goal)
+  const task = goal?.tasks.find(t => t.n === pending.task)
+  if (goal?.status === 'done') return stop(`all tasks of ${goal.title} ended; the goal is done`)
+  if (!goal || goal.status !== 'active') return stop(`${goal?.title ?? 'the goal'} is no longer the active goal`)
+  if (task?.mark !== 'x') return stop(`T${pending.task} was not finished`)
+  if (run.remaining === 0) return stop('the task finished; ready for the next task')
+  const remaining = run.remaining < 0 ? -1 : run.remaining - 1
+  const following = nextTask(goal)
+  if (!following) return stop(`${goal.title} has no task left`)
+  if (remaining === 0) return stop('no runs left')
+  return { kind: 'next', goal: goal.id, task: following.n, remaining }
 }

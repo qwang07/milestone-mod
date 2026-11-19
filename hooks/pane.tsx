@@ -4,7 +4,7 @@ import type { Elements as AllElements, RenderSurface } from 'claude-code'
 
 import type { Auto, Pool, Status, Task } from '../types'
 
-import { SECTION, activeGoal, labelOf, sectionBody, treeOrder } from './model'
+import { SECTION, activeGoal, labelOf, sectionBody, treeOrder } from '../core/model'
 import { rowView } from './tree'
 import type { TreeRow } from './tree'
 
@@ -32,6 +32,7 @@ export const TREE = 'tree'
 
 /** `canDrag` false once the tree's Client failed on a surface: the rows are then drawn as plain rows. */
 export type PaneData = { pool: Pool; auto: Auto; project: string; canDrag: boolean }
+export type PaneActions = { step: () => void; auto: () => void; pause: () => void }
 
 type Elements = AllElements[RenderSurface]
 
@@ -55,8 +56,8 @@ export const treeRows = (pool: Pool): TreeRow[] => {
 /** The surfaces that draw a `Client` today; elsewhere the table may still name one it cannot run. */
 const CLIENT_SURFACES: readonly RenderSurface[] = ['terminal', 'desktop']
 
-export const paneTree = (el: Elements, surface: RenderSurface, data: PaneData) => {
-  const { Box, Text } = el
+export const paneTree = (el: Elements, surface: RenderSurface, data: PaneData, actions?: PaneActions) => {
+  const { Box, Text, Button } = el
   const { pool, auto, project, canDrag } = data
   const active = activeGoal(pool)
   const rows = treeRows(pool)
@@ -96,8 +97,23 @@ export const paneTree = (el: Elements, surface: RenderSurface, data: PaneData) =
               </Text>
             </Box>
           ))}
+          {actions && (
+            <Box flexDirection="row" columnGap={1}>
+              {auto.pending === null ? (
+                <>
+                  <Button key="run-step" onPress={actions.step}>Next task</Button>
+                  <Button key="run-auto" onPress={actions.auto}>Keep going</Button>
+                </>
+              ) : auto.reason === 'paused by the user' ? (
+                <Text dimColor>Pausing after the current task</Text>
+              ) : (
+                <Button key="run-pause" onPress={actions.pause}>Pause after task</Button>
+              )}
+            </Box>
+          )}
         </Box>
       )}
+      {auto.reason && <Text dimColor>{`${auto.pending === null ? 'Stopped' : 'Status'}: ${auto.reason}`}</Text>}
     </Box>
   )
 }
