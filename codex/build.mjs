@@ -21,6 +21,14 @@ export async function buildPlugin(destination, args = ['--project', '.'], host =
   const description = 'Project plans, deliverables and progress';
   if (host === 'antigravity') {
     await writeFile(join(destination, 'plugin.json'), JSON.stringify({ name: 'milestone', displayName: 'Milestone', version, description }, null, 2));
+    await writeFile(join(destination, 'mcp_config.json'), JSON.stringify({
+      mcpServers: {
+        milestone: {
+          command: 'node',
+          args: ['${PLUGIN_ROOT}/server.mjs'],
+        },
+      },
+    }, null, 2));
     await copyFile(join(antigravity, 'README.md'), join(destination, 'README.md'));
     const sidecar = join(destination, 'sidecars', 'panel');
     const nodePaths = [join(here, 'node_modules')];

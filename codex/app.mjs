@@ -5,8 +5,9 @@ import packageInfo from './package.json' with { type: 'json' };
 const app = new App({ name: 'Milestone', version: packageInfo.version });
 const $ = selector => document.querySelector(selector);
 const STATE_URI = 'milestone://panel/state';
-let renderedRevision, latestRead = 0, connected = false, inFlight = false, pending = false, currentProject;
+let renderedRevision, latestRead = 0, connected = false, inFlight = false, pending = false, currentProject, requestedProject, stateUri = STATE_URI;
 let watcher, watchReady = false;
+const targetProject = () => currentProject ?? requestedProject;
 function showStatus() {
   const live = Boolean(watcher) && watchReady;
   $('#status').textContent = live ? '实时同步' : watcher ? '等待项目变更' : '等待操作更新';
@@ -18,8 +19,9 @@ async function watchUpdates(after) {
   watcher = controller;
   try {
     while (!controller.signal.aborted) {
+      const project = targetProject();
       const result = await app.callServerTool(
-        { name: 'wait_panel', arguments: { after } },
+        { name: 'wait_panel', arguments: project ? { after, project } : { after } },
         { signal: controller.signal, timeout: 35000 },
       );
       if (controller.signal.aborted) return;
@@ -46,8 +48,9 @@ function stopWatching() {
   previous?.abort();
 }
 function render(data) {
+  if (data.project) currentProject = data.project;
+  if (data.stateUri) stateUri = data.stateUri;
   if (data.revision === renderedRevision) return;
-  currentProject = data.project;
   renderPanel(document, data);
   renderedRevision = data.revision;
 }
@@ -57,7 +60,8 @@ async function sync() {
   inFlight = true;
   const read = ++latestRead;
   try {
-    const result = await app.callServerTool({ name: 'read_panel', arguments: {} });
+    const project = targetProject();
+    const result = await app.callServerTool({ name: 'read_panel', arguments: project ? { project } : {} });
     const data = result.structuredContent;
     // An opening tool result can supersede the snapshot while this read is in flight.
     if (!result.isError && data) void watchUpdates(data.changeToken);
@@ -89,25 +93,37 @@ function disconnect() {
 app.onteardown = async () => { disconnect(); return {}; };
 window.addEventListener('pagehide', disconnect);
 window.addEventListener('pageshow', () => { if (app.getHostContext()) { connected = true; void sync(); } });
+app.ontoolinput = ({ arguments: args } = {}) => {
+  if (typeof args?.project === 'string' && args.project && !currentProject && !requestedProject) {
+    requestedProject = args.project;
+    if (connected && !renderedRevision) {
+      ++latestRead;
+      void sync();
+    }
+  }
+};
 // Read only on opening, visibility changes, explicit retry, or a pushed event.
 app.ontoolresult = result => {
   if (result.isError) return;
   const event = result.structuredContent?.panelEvent;
   if (event?.type === 'project-changed') {
     if (currentProject && event.project !== currentProject) return;
+    if (!currentProject && event.project) currentProject = event.project;
     // Invalidate an older read before requesting the committed state.
     ++latestRead;
     void sync();
     return;
   }
   if (result.structuredContent?.test) {
+    if (currentProject && result.structuredContent.project && result.structuredContent.project !== currentProject) return;
     ++latestRead;
     render(result.structuredContent);
+    if (result.structuredContent.changeToken) void watchUpdates(result.structuredContent.changeToken);
     showStatus();
   }
 };
 app.setNotificationHandler(ResourceUpdatedNotificationSchema, ({ params }) => {
-  if (params.uri === STATE_URI) void sync();
+  if (params.uri === stateUri) void sync();
 });
 function theme(context) {
   if (context?.theme) applyDocumentTheme(context.theme);

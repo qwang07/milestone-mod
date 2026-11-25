@@ -50,6 +50,7 @@ jobs:
           test "$(node -p 'require(process.argv[1]).version' "$packages/codex/.codex-plugin/plugin.json")" = "$RELEASE_VERSION"
           test "$(node -p 'require(process.argv[1]).version' "$packages/antigravity/plugin.json")" = "$RELEASE_VERSION"
           test -s "$packages/codex/.mcp.json"
+          test -s "$packages/antigravity/mcp_config.json"
           test -s "$packages/antigravity/sidecars/panel/sidecar.json"
           cmp "$packages/codex/panel.html" "$packages/antigravity/panel.html"
           cmp "$packages/codex/server.mjs" "$packages/antigravity/server.mjs"

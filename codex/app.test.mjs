@@ -8,8 +8,8 @@ const source = (await readFile(new URL('./app.mjs', import.meta.url), 'utf8')).r
 const tick = () => new Promise(resolve => setImmediate(resolve));
 async function fixture(initial = { revision: '1', test: {} }, openingSnapshot) {
   const timers = new Map(), listeners = {}, elements = {}, rendered = [];
-  const waits = [];
-  let id = 0, calls = 0, response = { structuredContent: initial }, held;
+  const waits = [], readArgs = [];
+  let id = 0, calls = 0, response = initial?.isError ? initial : { structuredContent: initial }, held;
   class App {
     constructor() { this.getHostContext = () => ({}); }
     async connect() {}
@@ -19,7 +19,7 @@ async function fixture(initial = { revision: '1', test: {} }, openingSnapshot) {
         return new Promise(resolve => {
           const abort = () => resolve({ isError: true });
           signal.addEventListener('abort', abort, { once: true });
-          waits.push({ after: args.after, signal, complete(changeToken) {
+          waits.push({ after: args.after, project: args.project, signal, complete(changeToken) {
             signal.removeEventListener('abort', abort);
             resolve({ structuredContent: { changeToken } });
           } });
@@ -27,6 +27,7 @@ async function fixture(initial = { revision: '1', test: {} }, openingSnapshot) {
       }
       assert.equal(name, 'read_panel');
       calls++;
+      readArgs.push(args);
       if (calls === 1 && openingSnapshot) {
         const first = response;
         this.ontoolresult({ structuredContent: openingSnapshot });
@@ -40,7 +41,7 @@ async function fixture(initial = { revision: '1', test: {} }, openingSnapshot) {
   const context = vm.createContext({ App, AbortController, document, window: { addEventListener(event, handler) { listeners[event] = handler; } }, ResourceUpdatedNotificationSchema: {}, applyDocumentTheme() {}, applyHostStyleVariables() {}, renderPanel(_document, data) { rendered.push(data.revision); }, setTimeout(fn, delay) { timers.set(++id, { fn, delay }); return id; }, clearTimeout(key) { timers.delete(key); } });
   context.packageInfo = packageInfo;
   await vm.runInContext(`(async () => {${source}\nreturn app;})()`, context).then(app => { context.app = app; });
-  return { document, listeners, elements, rendered, timers, waits, app: context.app, get calls() { return calls; }, set response(value) { response = value; }, hold() { held = new Promise(resolve => { this.release = value => { held = null; resolve(value); }; }); } };
+  return { document, listeners, elements, rendered, timers, waits, readArgs, app: context.app, get calls() { return calls; }, set response(value) { response = value; }, hold() { held = new Promise(resolve => { this.release = value => { held = null; resolve(value); }; }); } };
 }
 test('panel stays idle without push support and reads only on explicit events', async () => {
   const f = await fixture();
@@ -127,4 +128,32 @@ test('the opening snapshot keeps the wait token from an in-flight read', async (
   assert.deepEqual(f.rendered, ['opened']);
   assert.equal(f.waits[0].after, 'first');
   await f.app.onteardown();
+});
+
+test('inline multi-project panel binds to its project and ignores other projects', async () => {
+  const stateUriA = 'milestone://panel/state?project=%2Fproject%2Fa';
+  const stateUriB = 'milestone://panel/state?project=%2Fproject%2Fb';
+  const mp = await fixture({ isError: true, content: [{ type: 'text', text: 'project is required' }] });
+  assert.equal(mp.elements['#status'].textContent, '暂时无法同步');
+  mp.response = { structuredContent: { revision: 'a1', project: '/project/a', stateUri: stateUriA, changeToken: 'tok-a1', test: {} } };
+  mp.app.ontoolinput({ arguments: { project: '/project/a' } });
+  mp.app.ontoolresult({ structuredContent: { revision: 'a1', project: '/project/a', stateUri: stateUriA, changeToken: 'tok-a1', test: {} } });
+  await tick();
+  assert.equal(mp.rendered.at(-1), 'a1');
+  assert.equal(mp.waits[0].project, '/project/a');
+  const callsAfterBind = mp.calls;
+  // Events and snapshots from project B must be ignored.
+  mp.app.ontoolresult({ structuredContent: { revision: 'b1', project: '/project/b', stateUri: stateUriB, test: {} } });
+  mp.app.ontoolresult({ structuredContent: { panelEvent: { type: 'project-changed', project: '/project/b' } } });
+  mp.app.notify({ params: { uri: stateUriB } });
+  await tick();
+  assert.equal(mp.calls, callsAfterBind);
+  assert(!mp.rendered.includes('b1'));
+  // Notifications for project A trigger a read scoped to project A.
+  mp.response = { structuredContent: { revision: 'a2', project: '/project/a', stateUri: stateUriA, changeToken: 'tok-a2', test: {} } };
+  mp.app.notify({ params: { uri: stateUriA } });
+  await tick();
+  assert.deepEqual({ ...mp.readArgs.at(-1) }, { project: '/project/a' });
+  assert.equal(mp.rendered.at(-1), 'a2');
+  await mp.app.onteardown();
 });
