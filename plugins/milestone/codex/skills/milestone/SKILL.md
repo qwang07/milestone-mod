@@ -5,10 +5,11 @@ description: Initialize Milestone in the current project (“初始化 Milestone
 
 Milestone records WHAT the project must deliver. The conversation manages HOW to deliver it.
 Open the persistent panel from `+` → `More tools…` → `Plugins and MCPs` → `Milestone` in the right panel.
+Pass `project` set to the current workspace's absolute path when calling Milestone tools (`list_goals`, `manage_goal`, `start_task`, `report_task`, `finish_task`, `open_app`, `open_panel`). Omit `project` only in single-project mode when the server is bound to one workspace.
 Use `open_app` when the user wants to see Milestone in the conversation.
-Initialize the current project by calling `list_goals(dataset=project)`.
+Initialize the current project by calling `list_goals(dataset=project, project=<workspace>)`.
 Create a goal only when the user supplies one.
-Read list_goals(dataset=project) before updating project state.
+Read list_goals(dataset=project, project=<workspace>) before updating project state.
 Use project tasks for independently verifiable deliverables, not commands, files to read or implementation steps.
 Use the host's conversation planning tools for implementation steps when available.
 Never duplicate those steps into the project task list.

@@ -30958,7 +30958,7 @@ var package_default = {
   },
   scripts: {
     verify: "node verify.mjs",
-    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs",
     build: "node build.mjs"
   },
   dependencies: {
@@ -30967,7 +30967,7 @@ var package_default = {
     esbuild: "0.28.2",
     zod: "4.6.7"
   },
-  version: "0.4.1"
+  version: "0.4.2"
 };
 
 // codex/app.mjs
@@ -30980,8 +30980,11 @@ var connected = false;
 var inFlight = false;
 var pending = false;
 var currentProject;
+var requestedProject;
+var stateUri = STATE_URI;
 var watcher;
 var watchReady = false;
+var targetProject = () => currentProject ?? requestedProject;
 function showStatus() {
   const live = Boolean(watcher) && watchReady;
   $("#status").textContent = live ? "\u5B9E\u65F6\u540C\u6B65" : watcher ? "\u7B49\u5F85\u9879\u76EE\u53D8\u66F4" : "\u7B49\u5F85\u64CD\u4F5C\u66F4\u65B0";
@@ -30993,8 +30996,9 @@ async function watchUpdates(after) {
   watcher = controller;
   try {
     while (!controller.signal.aborted) {
+      const project = targetProject();
       const result = await app.callServerTool(
-        { name: "wait_panel", arguments: { after } },
+        { name: "wait_panel", arguments: project ? { after, project } : { after } },
         { signal: controller.signal, timeout: 35e3 }
       );
       if (controller.signal.aborted) return;
@@ -31021,8 +31025,9 @@ function stopWatching() {
   previous?.abort();
 }
 function render(data) {
+  if (data.project) currentProject = data.project;
+  if (data.stateUri) stateUri = data.stateUri;
   if (data.revision === renderedRevision) return;
-  currentProject = data.project;
   renderPanel(document, data);
   renderedRevision = data.revision;
 }
@@ -31035,7 +31040,8 @@ async function sync() {
   inFlight = true;
   const read = ++latestRead;
   try {
-    const result = await app.callServerTool({ name: "read_panel", arguments: {} });
+    const project = targetProject();
+    const result = await app.callServerTool({ name: "read_panel", arguments: project ? { project } : {} });
     const data = result.structuredContent;
     if (!result.isError && data) void watchUpdates(data.changeToken);
     if (read !== latestRead) return;
@@ -31077,23 +31083,35 @@ window.addEventListener("pageshow", () => {
     void sync();
   }
 });
+app.ontoolinput = ({ arguments: args } = {}) => {
+  if (typeof args?.project === "string" && args.project && !currentProject && !requestedProject) {
+    requestedProject = args.project;
+    if (connected && !renderedRevision) {
+      ++latestRead;
+      void sync();
+    }
+  }
+};
 app.ontoolresult = (result) => {
   if (result.isError) return;
   const event = result.structuredContent?.panelEvent;
   if (event?.type === "project-changed") {
     if (currentProject && event.project !== currentProject) return;
+    if (!currentProject && event.project) currentProject = event.project;
     ++latestRead;
     void sync();
     return;
   }
   if (result.structuredContent?.test) {
+    if (currentProject && result.structuredContent.project && result.structuredContent.project !== currentProject) return;
     ++latestRead;
     render(result.structuredContent);
+    if (result.structuredContent.changeToken) void watchUpdates(result.structuredContent.changeToken);
     showStatus();
   }
 };
 app.setNotificationHandler(ResourceUpdatedNotificationSchema2, ({ params }) => {
-  if (params.uri === STATE_URI) void sync();
+  if (params.uri === stateUri) void sync();
 });
 function theme(context) {
   if (context?.theme) xQ(context.theme);

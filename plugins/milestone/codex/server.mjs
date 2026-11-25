@@ -3871,7 +3871,7 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse3(serialize(uri, options), options);
+        parse4(serialize(uri, options), options);
       }
       return uri;
     }
@@ -3914,8 +3914,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative2, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse3(serialize(base, options), options);
-        relative2 = parse3(serialize(relative2, options), options);
+        base = parse4(serialize(base, options), options);
+        relative2 = parse4(serialize(relative2, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative2.scheme) {
@@ -4233,7 +4233,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse3(uri, opts) {
+    function parse4(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -4270,7 +4270,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse: parse3
+      parse: parse4
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -5000,12 +5000,12 @@ var require_ref = __commonJS({
       function callSyncRef() {
         cxt.result((0, code_1.callValidateCode)(cxt, v, passCxt), () => addEvaluatedFrom(v), () => addErrorsFrom(v));
       }
-      function addErrorsFrom(source2) {
-        const errs = (0, codegen_1._)`${source2}.errors`;
+      function addErrorsFrom(source) {
+        const errs = (0, codegen_1._)`${source}.errors`;
         gen.assign(names_1.default.vErrors, (0, codegen_1._)`${names_1.default.vErrors} === null ? ${errs} : ${names_1.default.vErrors}.concat(${errs})`);
         gen.assign(names_1.default.errors, (0, codegen_1._)`${names_1.default.vErrors}.length`);
       }
-      function addEvaluatedFrom(source2) {
+      function addEvaluatedFrom(source) {
         var _a3;
         if (!it.opts.unevaluated)
           return;
@@ -5016,7 +5016,7 @@ var require_ref = __commonJS({
               it.props = util_1.mergeEvaluated.props(gen, schEvaluated.props, it.props);
             }
           } else {
-            const props = gen.var("props", (0, codegen_1._)`${source2}.evaluated.props`);
+            const props = gen.var("props", (0, codegen_1._)`${source}.evaluated.props`);
             it.props = util_1.mergeEvaluated.props(gen, props, it.props, codegen_1.Name);
           }
         }
@@ -5026,7 +5026,7 @@ var require_ref = __commonJS({
               it.items = util_1.mergeEvaluated.items(gen, schEvaluated.items, it.items);
             }
           } else {
-            const items = gen.var("items", (0, codegen_1._)`${source2}.evaluated.items`);
+            const items = gen.var("items", (0, codegen_1._)`${source}.evaluated.items`);
             it.items = util_1.mergeEvaluated.items(gen, items, it.items, codegen_1.Name);
           }
         }
@@ -7258,7 +7258,7 @@ var require_dist = __commonJS({
 // codex/server.mjs
 import { readFile as readFile2, readdir as readdir2, realpath as realpath2, lstat as lstat2 } from "node:fs/promises";
 import { watch } from "node:fs";
-import { basename, join as join2, relative, isAbsolute } from "node:path";
+import { basename, join as join2, parse as parse3, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash as createHash2, randomUUID as randomUUID2 } from "node:crypto";
 import { createServer } from "node:http";
@@ -11606,10 +11606,10 @@ function cached(getter) {
 function nullish(input2) {
   return input2 === null || input2 === void 0;
 }
-function cleanRegex(source2) {
-  const start = source2.startsWith("^") ? 1 : 0;
-  const end = source2.endsWith("$") ? source2.length - 1 : source2.length;
-  return source2.slice(start, end);
+function cleanRegex(source) {
+  const start = source.startsWith("^") ? 1 : 0;
+  const end = source.endsWith("$") ? source.length - 1 : source.length;
+  return source.slice(start, end);
 }
 function floatSafeRemainder2(val, step) {
   const ratio = val / step;
@@ -11677,28 +11677,28 @@ function putProp(target, key, value) {
   else
     target[key] = value;
 }
-function mirrorShape(target, source2, keys, wrap) {
-  const raw = sourceShape(source2);
+function mirrorShape(target, source, keys, wrap) {
+  const raw = sourceShape(source);
   for (const key of keys) {
     const desc = Object.getOwnPropertyDescriptor(raw, key);
     if (!desc.enumerable)
       continue;
     if (desc.get) {
       deferProp(target, key, () => {
-        const value = source2._zod.def.shape[key];
+        const value = source._zod.def.shape[key];
         return wrap ? wrap(value, key) : value;
       });
     } else
       putProp(target, key, wrap ? wrap(desc.value, key) : desc.value);
   }
 }
-function mirrorProps(target, source2) {
-  for (const key of Reflect.ownKeys(source2)) {
-    const desc = Object.getOwnPropertyDescriptor(source2, key);
+function mirrorProps(target, source) {
+  for (const key of Reflect.ownKeys(source)) {
+    const desc = Object.getOwnPropertyDescriptor(source, key);
     if (!desc.enumerable)
       continue;
     if (desc.get)
-      deferProp(target, key, () => source2[key]);
+      deferProp(target, key, () => source[key]);
     else
       putProp(target, key, desc.value);
   }
@@ -12755,18 +12755,18 @@ var validateAsync = async (schema, value, _ctx) => {
   return result2.issues.length === 0;
 };
 var _encode = (_Err) => {
-  const parse3 = _parse(_Err);
+  const parse4 = _parse(_Err);
   const fn = (schema, value, _ctx, _params) => {
     const ctx = _ctx ? { ..._ctx, direction: "backward" } : { direction: "backward" };
-    return parse3(schema, value, ctx, finalizeParams(fn, _params));
+    return parse4(schema, value, ctx, finalizeParams(fn, _params));
   };
   return fn;
 };
 var encode = /* @__PURE__ */ _encode($ZodRealError);
 var _decode = (_Err) => {
-  const parse3 = _parse(_Err);
+  const parse4 = _parse(_Err);
   const fn = (schema, value, _ctx, _params) => {
-    return parse3(schema, value, _ctx, finalizeParams(fn, _params));
+    return parse4(schema, value, _ctx, finalizeParams(fn, _params));
   };
   return fn;
 };
@@ -12923,8 +12923,8 @@ var creditCard = /^\d(?:[ -]?\d){11,18}$/;
 var currencyCode = /^(?:AED|AFN|ALL|AMD|AOA|ARS|AUD|AWG|AZN|BAM|BBD|BDT|BHD|BIF|BMD|BND|BOB|BOV|BRL|BSD|BTN|BWP|BYN|BZD|CAD|CDF|CHE|CHF|CHW|CLF|CLP|CNY|COP|COU|CRC|CUP|CVE|CZK|DJF|DKK|DOP|DZD|EGP|ERN|ETB|EUR|FJD|FKP|GBP|GEL|GHS|GIP|GMD|GNF|GTQ|GYD|HKD|HNL|HTG|HUF|IDR|ILS|INR|IQD|IRR|ISK|JMD|JOD|JPY|KES|KGS|KHR|KMF|KPW|KRW|KWD|KYD|KZT|LAK|LBP|LKR|LRD|LSL|LYD|MAD|MDL|MGA|MKD|MMK|MNT|MOP|MRU|MUR|MVR|MWK|MXN|MXV|MYR|MZN|NAD|NGN|NIO|NOK|NPR|NZD|OMR|PAB|PEN|PGK|PHP|PKR|PLN|PYG|QAR|RON|RSD|RUB|RWF|SAR|SBD|SCR|SDG|SEK|SGD|SHP|SLE|SOS|SRD|SSP|STN|SVC|SYP|SZL|THB|TJS|TMT|TND|TOP|TRY|TTD|TWD|TZS|UAH|UGX|USD|USN|UYI|UYU|UYW|UZS|VED|VES|VND|VUV|WST|XAD|XAF|XAG|XAU|XBA|XBB|XBC|XBD|XCD|XCG|XDR|XOF|XPD|XPF|XPT|XSU|XTS|XUA|XXX|YER|ZAR|ZMW|ZWG)$/;
 var iban = /^[A-Z]{2}(?!00|01|99)\d{2}[A-Z0-9]{11,30}$/;
 var dateSource = `(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))`;
-function anchor(source2) {
-  return new RegExp(`^${source2}$`);
+function anchor(source) {
+  return new RegExp(`^${source}$`);
 }
 var date = /* @__PURE__ */ anchor(dateSource);
 function timeSource(args) {
@@ -14261,7 +14261,7 @@ function capSize(inst, size) {
   if (!caps.length)
     return;
   const cap = Math.min(...caps.map((c) => c[0]));
-  const parse3 = inst._zod.parse;
+  const parse4 = inst._zod.parse;
   inst._zod.parse = (payload, ctx) => {
     const n = size(payload.value);
     if (n > cap && !ctx?.skipChecks && ctx?.direction !== "backward") {
@@ -14275,7 +14275,7 @@ function capSize(inst, size) {
         }
       }
     }
-    return parse3(payload, ctx);
+    return parse4(payload, ctx);
   };
 }
 var arraySize = (input2) => Array.isArray(input2) ? input2.length : -1;
@@ -15775,11 +15775,11 @@ var $ZodTemplateLiteral = /* @__PURE__ */ $constructor("$ZodTemplateLiteral", (i
   const regexParts = [];
   for (const part of def.parts) {
     if (typeof part === "object" && part !== null) {
-      const source2 = partPattern(part);
-      if (!source2) {
+      const source = partPattern(part);
+      if (!source) {
         throw new Error(`Invalid template literal part, no pattern found: ${[...part._zod.traits].shift()}`);
       }
-      regexParts.push(cleanRegex(source2));
+      regexParts.push(cleanRegex(source));
     } else if (part === null || primitiveTypes.has(typeof part)) {
       regexParts.push(escapeRegex(`${part}`));
     } else {
@@ -23905,9 +23905,9 @@ function withParser(schema, parser) {
     installCompiledUserMethods(clone2, schema, parser);
   return clone2;
 }
-function installCompiledUserMethods(target, source2, parser) {
+function installCompiledUserMethods(target, source, parser) {
   const targetAny = target;
-  const sourceAny = source2;
+  const sourceAny = source;
   if (typeof sourceAny.safeParse === "function") {
     const originalSafeParse = sourceAny.safeParse;
     targetAny.safeParse = (data, params) => {
@@ -26510,10 +26510,10 @@ function _stringFormat(Class2, format, fnOrRegex, _params = {}) {
 
 // codex/node_modules/zod/v4/core/to-json-schema.js
 function assignProps(target, ...sources) {
-  for (const source2 of sources) {
-    for (const key of Reflect.ownKeys(source2)) {
-      if (Object.prototype.propertyIsEnumerable.call(source2, key)) {
-        assignProp(target, key, source2[key]);
+  for (const source of sources) {
+    for (const key of Reflect.ownKeys(source)) {
+      if (Object.prototype.propertyIsEnumerable.call(source, key)) {
+        assignProp(target, key, source[key]);
       }
     }
   }
@@ -33148,13 +33148,13 @@ function escapeLiteralCheckValue(literal2, refs) {
   return refs.patternStrategy === "escape" ? escapeNonAlphaNumeric(literal2) : literal2;
 }
 var ALPHA_NUMERIC = new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
-function escapeNonAlphaNumeric(source2) {
+function escapeNonAlphaNumeric(source) {
   let result2 = "";
-  for (let i = 0; i < source2.length; i++) {
-    if (!ALPHA_NUMERIC.has(source2[i])) {
+  for (let i = 0; i < source.length; i++) {
+    if (!ALPHA_NUMERIC.has(source[i])) {
       result2 += "\\";
     }
-    result2 += source2[i];
+    result2 += source[i];
   }
   return result2;
 }
@@ -33224,60 +33224,60 @@ function stringifyRegExpWithFlags(regex, refs) {
     s: regex.flags.includes("s")
     // `.` matches newlines
   };
-  const source2 = flags.i ? regex.source.toLowerCase() : regex.source;
+  const source = flags.i ? regex.source.toLowerCase() : regex.source;
   let pattern = "";
   let isEscaped = false;
   let inCharGroup = false;
   let inCharRange = false;
-  for (let i = 0; i < source2.length; i++) {
+  for (let i = 0; i < source.length; i++) {
     if (isEscaped) {
-      pattern += source2[i];
+      pattern += source[i];
       isEscaped = false;
       continue;
     }
     if (flags.i) {
       if (inCharGroup) {
-        if (source2[i].match(/[a-z]/)) {
+        if (source[i].match(/[a-z]/)) {
           if (inCharRange) {
-            pattern += source2[i];
-            pattern += `${source2[i - 2]}-${source2[i]}`.toUpperCase();
+            pattern += source[i];
+            pattern += `${source[i - 2]}-${source[i]}`.toUpperCase();
             inCharRange = false;
-          } else if (source2[i + 1] === "-" && source2[i + 2]?.match(/[a-z]/)) {
-            pattern += source2[i];
+          } else if (source[i + 1] === "-" && source[i + 2]?.match(/[a-z]/)) {
+            pattern += source[i];
             inCharRange = true;
           } else {
-            pattern += `${source2[i]}${source2[i].toUpperCase()}`;
+            pattern += `${source[i]}${source[i].toUpperCase()}`;
           }
           continue;
         }
-      } else if (source2[i].match(/[a-z]/)) {
-        pattern += `[${source2[i]}${source2[i].toUpperCase()}]`;
+      } else if (source[i].match(/[a-z]/)) {
+        pattern += `[${source[i]}${source[i].toUpperCase()}]`;
         continue;
       }
     }
     if (flags.m) {
-      if (source2[i] === "^") {
+      if (source[i] === "^") {
         pattern += `(^|(?<=[\r
 ]))`;
         continue;
-      } else if (source2[i] === "$") {
+      } else if (source[i] === "$") {
         pattern += `($|(?=[\r
 ]))`;
         continue;
       }
     }
-    if (flags.s && source2[i] === ".") {
-      pattern += inCharGroup ? `${source2[i]}\r
-` : `[${source2[i]}\r
+    if (flags.s && source[i] === ".") {
+      pattern += inCharGroup ? `${source[i]}\r
+` : `[${source[i]}\r
 ]`;
       continue;
     }
-    pattern += source2[i];
-    if (source2[i] === "\\") {
+    pattern += source[i];
+    if (source[i] === "\\") {
       isEscaped = true;
-    } else if (inCharGroup && source2[i] === "]") {
+    } else if (inCharGroup && source[i] === "]") {
       inCharGroup = false;
-    } else if (!inCharGroup && source2[i] === "[") {
+    } else if (!inCharGroup && source[i] === "[") {
       inCharGroup = true;
     }
   }
@@ -34210,13 +34210,13 @@ var Protocol = class {
     const capturedTransport = this._transport;
     const relatedTaskId = request.params?._meta?.[RELATED_TASK_META_KEY]?.taskId;
     const sessionId = capturedTransport?.sessionId;
-    const store2 = this._taskStore;
+    const store = this._taskStore;
     let relatedTaskFound = true;
     let relatedTaskLookup;
-    if (relatedTaskId && store2 && this._taskMessageQueue && sessionId !== void 0) {
+    if (relatedTaskId && store && this._taskMessageQueue && sessionId !== void 0) {
       relatedTaskFound = false;
       relatedTaskLookup = (async () => {
-        if (!await store2.getTask(relatedTaskId, sessionId)) {
+        if (!await store.getTask(relatedTaskId, sessionId)) {
           throw new McpError(ErrorCode.InvalidParams, `Task not found: ${relatedTaskId}`);
         }
         relatedTaskFound = true;
@@ -35643,6 +35643,228 @@ var McpZodTypeKind;
   McpZodTypeKind2["Completable"] = "McpCompletable";
 })(McpZodTypeKind || (McpZodTypeKind = {}));
 
+// codex/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/uriTemplate.js
+var MAX_TEMPLATE_LENGTH = 1e6;
+var MAX_VARIABLE_LENGTH = 1e6;
+var MAX_TEMPLATE_EXPRESSIONS = 1e4;
+var MAX_REGEX_LENGTH = 1e6;
+var UriTemplate = class _UriTemplate {
+  /**
+   * Returns true if the given string contains any URI template expressions.
+   * A template expression is a sequence of characters enclosed in curly braces,
+   * like {foo} or {?bar}.
+   */
+  static isTemplate(str) {
+    return /\{[^}\s]+\}/.test(str);
+  }
+  static validateLength(str, max, context) {
+    if (str.length > max) {
+      throw new Error(`${context} exceeds maximum length of ${max} characters (got ${str.length})`);
+    }
+  }
+  get variableNames() {
+    return this.parts.flatMap((part) => typeof part === "string" ? [] : part.names);
+  }
+  constructor(template) {
+    _UriTemplate.validateLength(template, MAX_TEMPLATE_LENGTH, "Template");
+    this.template = template;
+    this.parts = this.parse(template);
+  }
+  toString() {
+    return this.template;
+  }
+  parse(template) {
+    const parts = [];
+    let currentText = "";
+    let i = 0;
+    let expressionCount = 0;
+    while (i < template.length) {
+      if (template[i] === "{") {
+        if (currentText) {
+          parts.push(currentText);
+          currentText = "";
+        }
+        const end = template.indexOf("}", i);
+        if (end === -1)
+          throw new Error("Unclosed template expression");
+        expressionCount++;
+        if (expressionCount > MAX_TEMPLATE_EXPRESSIONS) {
+          throw new Error(`Template contains too many expressions (max ${MAX_TEMPLATE_EXPRESSIONS})`);
+        }
+        const expr = template.slice(i + 1, end);
+        const operator = this.getOperator(expr);
+        const exploded = expr.includes("*");
+        const names = this.getNames(expr);
+        const name = names[0];
+        for (const name2 of names) {
+          _UriTemplate.validateLength(name2, MAX_VARIABLE_LENGTH, "Variable name");
+        }
+        parts.push({ name, operator, names, exploded });
+        i = end + 1;
+      } else {
+        currentText += template[i];
+        i++;
+      }
+    }
+    if (currentText) {
+      parts.push(currentText);
+    }
+    return parts;
+  }
+  getOperator(expr) {
+    const operators = ["+", "#", ".", "/", "?", "&"];
+    return operators.find((op) => expr.startsWith(op)) || "";
+  }
+  getNames(expr) {
+    const operator = this.getOperator(expr);
+    return expr.slice(operator.length).split(",").map((name) => name.replace("*", "").trim()).filter((name) => name.length > 0);
+  }
+  encodeValue(value, operator) {
+    _UriTemplate.validateLength(value, MAX_VARIABLE_LENGTH, "Variable value");
+    if (operator === "+" || operator === "#") {
+      return encodeURI(value);
+    }
+    return encodeURIComponent(value);
+  }
+  expandPart(part, variables) {
+    if (part.operator === "?" || part.operator === "&") {
+      const pairs = part.names.map((name) => {
+        const value2 = variables[name];
+        if (value2 === void 0)
+          return "";
+        const encoded2 = Array.isArray(value2) ? value2.map((v) => this.encodeValue(v, part.operator)).join(",") : this.encodeValue(value2.toString(), part.operator);
+        return `${name}=${encoded2}`;
+      }).filter((pair) => pair.length > 0);
+      if (pairs.length === 0)
+        return "";
+      const separator = part.operator === "?" ? "?" : "&";
+      return separator + pairs.join("&");
+    }
+    if (part.names.length > 1) {
+      const values3 = part.names.map((name) => variables[name]).filter((v) => v !== void 0);
+      if (values3.length === 0)
+        return "";
+      return values3.map((v) => Array.isArray(v) ? v[0] : v).join(",");
+    }
+    const value = variables[part.name];
+    if (value === void 0)
+      return "";
+    const values2 = Array.isArray(value) ? value : [value];
+    const encoded = values2.map((v) => this.encodeValue(v, part.operator));
+    switch (part.operator) {
+      case "":
+        return encoded.join(",");
+      case "+":
+        return encoded.join(",");
+      case "#":
+        return "#" + encoded.join(",");
+      case ".":
+        return "." + encoded.join(".");
+      case "/":
+        return "/" + encoded.join("/");
+      default:
+        return encoded.join(",");
+    }
+  }
+  expand(variables) {
+    let result2 = "";
+    let hasQueryParam = false;
+    for (const part of this.parts) {
+      if (typeof part === "string") {
+        result2 += part;
+        continue;
+      }
+      const expanded = this.expandPart(part, variables);
+      if (!expanded)
+        continue;
+      if ((part.operator === "?" || part.operator === "&") && hasQueryParam) {
+        result2 += expanded.replace("?", "&");
+      } else {
+        result2 += expanded;
+      }
+      if (part.operator === "?" || part.operator === "&") {
+        hasQueryParam = true;
+      }
+    }
+    return result2;
+  }
+  escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  partToRegExp(part) {
+    const patterns = [];
+    for (const name2 of part.names) {
+      _UriTemplate.validateLength(name2, MAX_VARIABLE_LENGTH, "Variable name");
+    }
+    if (part.operator === "?" || part.operator === "&") {
+      for (let i = 0; i < part.names.length; i++) {
+        const name2 = part.names[i];
+        const prefix = i === 0 ? "\\" + part.operator : "&";
+        patterns.push({
+          pattern: prefix + this.escapeRegExp(name2) + "=([^&]+)",
+          name: name2
+        });
+      }
+      return patterns;
+    }
+    let pattern;
+    const name = part.name;
+    switch (part.operator) {
+      case "":
+        pattern = part.exploded ? "([^/,]+(?:,[^/,]+)*)" : "([^/,]+)";
+        break;
+      case "+":
+      case "#":
+        pattern = "(.+)";
+        break;
+      case ".":
+        pattern = "\\.([^/,]+)";
+        break;
+      case "/":
+        pattern = "/" + (part.exploded ? "([^/,]+(?:,[^/,]+)*)" : "([^/,]+)");
+        break;
+      default:
+        pattern = "([^/]+)";
+    }
+    patterns.push({ pattern, name });
+    return patterns;
+  }
+  match(uri) {
+    _UriTemplate.validateLength(uri, MAX_TEMPLATE_LENGTH, "URI");
+    let pattern = "^";
+    const names = [];
+    for (const part of this.parts) {
+      if (typeof part === "string") {
+        pattern += this.escapeRegExp(part);
+      } else {
+        const patterns = this.partToRegExp(part);
+        for (const { pattern: partPattern2, name } of patterns) {
+          pattern += partPattern2;
+          names.push({ name, exploded: part.exploded });
+        }
+      }
+    }
+    pattern += "$";
+    _UriTemplate.validateLength(pattern, MAX_REGEX_LENGTH, "Generated regex pattern");
+    const regex = new RegExp(pattern);
+    const match = uri.match(regex);
+    if (!match)
+      return null;
+    const result2 = {};
+    for (let i = 0; i < names.length; i++) {
+      const { name, exploded } = names[i];
+      const value = match[i + 1];
+      const cleanName = name.replace("*", "");
+      if (exploded && value.includes(",")) {
+        result2[cleanName] = value.split(",");
+      } else {
+        result2[cleanName] = value;
+      }
+    }
+    return result2;
+  }
+};
+
 // codex/node_modules/@modelcontextprotocol/sdk/dist/esm/shared/toolNameValidation.js
 var TOOL_NAME_REGEX = /^[A-Za-z0-9._-]{1,128}$/;
 function validateToolName(name) {
@@ -36481,6 +36703,30 @@ var McpServer = class {
     }
   }
 };
+var ResourceTemplate = class {
+  constructor(uriTemplate, _callbacks) {
+    this._callbacks = _callbacks;
+    this._uriTemplate = typeof uriTemplate === "string" ? new UriTemplate(uriTemplate) : uriTemplate;
+  }
+  /**
+   * Gets the URI template pattern.
+   */
+  get uriTemplate() {
+    return this._uriTemplate;
+  }
+  /**
+   * Gets the list callback, if one was provided.
+   */
+  get listCallback() {
+    return this._callbacks.list;
+  }
+  /**
+   * Gets the callback for completing a specific URI template variable, if one was provided.
+   */
+  completeCallback(variable) {
+    return this._callbacks.complete?.[variable];
+  }
+};
 var EMPTY_OBJECT_JSON_SCHEMA = {
   type: "object",
   properties: {}
@@ -37047,11 +37293,11 @@ var esc2 = (value) => String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", 
 function goals(pool) {
   return `<ul class="goals">${treeOrder(pool).filter((x) => x.goal.status !== "dropped").map(({ goal, depth }) => `<li style="padding-inline-start:${depth * 16}px" class="${goal.status === "active" ? "active" : ""}"><span>${esc2(goal.title)}</span><strong>${esc2(labelOf(goal))}</strong></li>`).join("")}</ul>` + pool.errors.map((e) => `<p role="alert">${esc2(e.file)}: ${esc2(e.reason)}</p>`).join("");
 }
-function panel({ source: source2, scratch: scratch2, existing, test }) {
+function panel({ source, scratch, existing, test }) {
   const active = activeGoal(test);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="2"><title>Milestone \xB7 Codex probe</title><style>
 :root{color-scheme:light dark;font:14px/1.6 system-ui,sans-serif}body{margin:0;padding:24px;max-width:880px;margin-inline:auto;background:light-dark(#f8fafc,#10151e);color:light-dark(#182535,#edf1f7)}header{border-bottom:1px solid #718096;padding-bottom:16px}h1{font-size:24px;margin:0}h2{font-size:17px;margin:24px 0 8px}h3{font-size:15px}p{margin:8px 0}.muted,small{color:light-dark(#4b5d73,#abb9cc)}.badge{font-size:12px;border:1px solid #718096;border-radius:16px;padding:3px 10px}.path{overflow-wrap:anywhere;font-size:12px}.goals{list-style:none;padding:0}.goals li{display:flex;gap:16px;justify-content:space-between;align-items:start;padding-block:9px;border-bottom:1px solid light-dark(#dbe1ea,#2d3747)}.goals span{min-width:0;overflow-wrap:anywhere}.goals strong{white-space:nowrap;font-size:12px;flex-shrink:0}.active{color:light-dark(#075a8a,#88d0ff)}.tasks{padding:16px 20px;border:1px solid #718096;border-radius:12px}.tasks ol{padding-left:22px}.tasks li{padding-block:8px}.mark{font-family:monospace;white-space:pre}.acceptance{font-size:12px;overflow-wrap:anywhere}footer{margin-top:24px;border-top:1px solid #718096;padding-top:12px}
-</style></head><body><header><span class="badge">Codex \xB7 verification</span><h1>Milestone</h1><p class="muted">Live goals \xB7 read-only panel \xB7 refreshes every 2 seconds</p></header><main><section><h2>Existing project</h2><p class="path muted">${esc2(source2)}</p><p>${existing.goals.length} goals \xB7 existing files are read-only</p>${goals(existing)}</section><section><h2>Test copy</h2><p class="path muted">${esc2(scratch2)}</p>${goals(test)}${active ? `<article class="tasks"><h3>${esc2(active.title)}</h3><p>${esc2(sectionBody(active, SECTION.acceptance))}</p><ol>${active.tasks.map((t) => `<li><span class="mark">[${esc2(t.mark)}]</span> T${t.n} ${esc2(t.title)}<p class="acceptance muted">Acceptance: ${esc2(t.acceptance)}</p></li>`).join("")}</ol></article>` : "<p>No active test goal.</p>"}</section></main><footer><small>Only the test copy accepts MCP task updates.</small></footer></body></html>`;
+</style></head><body><header><span class="badge">Codex \xB7 verification</span><h1>Milestone</h1><p class="muted">Live goals \xB7 read-only panel \xB7 refreshes every 2 seconds</p></header><main><section><h2>Existing project</h2><p class="path muted">${esc2(source)}</p><p>${existing.goals.length} goals \xB7 existing files are read-only</p>${goals(existing)}</section><section><h2>Test copy</h2><p class="path muted">${esc2(scratch)}</p>${goals(test)}${active ? `<article class="tasks"><h3>${esc2(active.title)}</h3><p>${esc2(sectionBody(active, SECTION.acceptance))}</p><ol>${active.tasks.map((t) => `<li><span class="mark">[${esc2(t.mark)}]</span> T${t.n} ${esc2(t.title)}<p class="acceptance muted">Acceptance: ${esc2(t.acceptance)}</p></li>`).join("")}</ol></article>` : "<p>No active test goal.</p>"}</section></main><footer><small>Only the test copy accepts MCP task updates.</small></footer></body></html>`;
 }
 
 // storage/project.mjs
@@ -37260,7 +37506,7 @@ var package_default = {
   },
   scripts: {
     verify: "node verify.mjs",
-    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs",
     build: "node build.mjs"
   },
   dependencies: {
@@ -37269,7 +37515,7 @@ var package_default = {
     esbuild: "0.28.2",
     zod: "4.6.7"
   },
-  version: "0.4.1"
+  version: "0.4.2"
 };
 
 // codex/server.mjs
@@ -37277,23 +37523,88 @@ var { values } = parseArgs({
   args: process.argv.slice(2),
   options: { source: { type: "string" }, scratch: { type: "string" }, project: { type: "string" } }
 });
-if (!values.project && (!values.source || !values.scratch)) throw new Error("Use --project, or --source and --scratch for isolated verification");
-var scratch = await realpath2(values.project ?? values.scratch);
-var source = values.project ? null : await realpath2(values.source);
-var projectName = basename(source ?? scratch) || "\u9879\u76EE";
-var temp = await realpath2(tmpdir());
+if (!values.project && Boolean(values.source) !== Boolean(values.scratch)) {
+  throw new Error("Use --project, or --source and --scratch for isolated verification");
+}
+var multiProject = !values.project && !values.source && !values.scratch;
+var owner = randomUUID2();
+var APP_URI = "ui://milestone/panel.html";
+var STATE_URI = "milestone://panel/state";
 var inside = (root, path) => {
   const rel = relative(root, path);
   return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
 };
-if (source) {
-  if (!inside(temp, scratch) || source === scratch || inside(scratch, source) || inside(source, scratch)) throw new Error("The test copy must be a separate directory under the system temp directory");
-  const marker = JSON.parse(await readFile2(join2(scratch, ".milestone-probe.json"), "utf8"));
-  if (marker.source !== source) throw new Error("The test copy marker does not match --source");
+async function resolveProjectRoot(input2) {
+  if (typeof input2 !== "string" || !input2.trim() || input2.includes("\0") || !isAbsolute(input2)) {
+    throw new Error("project must be an absolute path to an existing directory");
+  }
+  if (input2.split(/[\\/]/).includes("..")) {
+    throw new Error("project path must not contain parent traversal segments");
+  }
+  let canonical;
+  try {
+    canonical = await realpath2(input2);
+  } catch {
+    throw new Error("Project directory does not exist");
+  }
+  const stats = await lstat2(canonical);
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error("Project path must be an existing directory");
+  }
+  if (parse3(canonical).root === canonical) {
+    throw new Error("Project path must not be a filesystem root");
+  }
+  return canonical;
 }
-var store = new ProjectStore(scratch);
-var owner = randomUUID2();
-await store.snapshot();
+var contexts = /* @__PURE__ */ new Map();
+var eventRoutes = /* @__PURE__ */ new Map();
+var panelRoutes = /* @__PURE__ */ new Map();
+function createContext(root, source = null) {
+  const ctx = {
+    root,
+    source,
+    projectName: basename(source ?? root) || "\u9879\u76EE",
+    store: new ProjectStore(root),
+    stateUri: multiProject ? `${STATE_URI}?project=${encodeURIComponent(root)}` : STATE_URI,
+    eventId: randomUUID2(),
+    eventClients: /* @__PURE__ */ new Set(),
+    changeTimer: void 0,
+    previousRevision: void 0,
+    changeToken: randomUUID2(),
+    waitingPanels: /* @__PURE__ */ new Set(),
+    watchers: [],
+    watching: false,
+    subscribedUris: /* @__PURE__ */ new Set(),
+    panelToken: randomUUID2()
+  };
+  contexts.set(root, ctx);
+  eventRoutes.set(`/events/${ctx.eventId}`, ctx);
+  return ctx;
+}
+var defaultContext = null;
+if (!multiProject) {
+  const scratch = await realpath2(values.project ?? values.scratch);
+  const source = values.project ? null : await realpath2(values.source);
+  const temp = await realpath2(tmpdir());
+  if (source) {
+    if (!inside(temp, scratch) || source === scratch || inside(scratch, source) || inside(source, scratch)) throw new Error("The test copy must be a separate directory under the system temp directory");
+    const marker = JSON.parse(await readFile2(join2(scratch, ".milestone-probe.json"), "utf8"));
+    if (marker.source !== source) throw new Error("The test copy marker does not match --source");
+  }
+  defaultContext = createContext(scratch, source);
+  await defaultContext.store.snapshot();
+}
+async function resolveContext(project) {
+  if (!multiProject) {
+    if (project === void 0) return defaultContext;
+    const canonical2 = await resolveProjectRoot(project);
+    if (canonical2 !== defaultContext.root) throw new Error("Project path does not match the bound project");
+    return defaultContext;
+  }
+  if (project === void 0) throw new Error("project is required in multi-project mode");
+  const canonical = await resolveProjectRoot(project);
+  return contexts.get(canonical) ?? createContext(canonical);
+}
 var publicRun = (run) => run ? { ...run, owner: void 0, owned: run.owner === owner } : null;
 var publicPool = ({ raw, ...pool }) => ({ ...pool, ..."run" in pool ? { run: publicRun(pool.run) } : {} });
 var busyRun = (run) => run && ["queued", "running"].includes(run.status);
@@ -37334,8 +37645,6 @@ var guarded = (fn) => async (args) => {
 };
 var { version: version2 } = package_default;
 var server = new McpServer({ name: "milestone-codex-probe", version: version2 });
-var APP_URI = "ui://milestone/panel.html";
-var STATE_URI = "milestone://panel/state";
 var appHtml;
 try {
   appHtml = await readFile2(new URL("./panel.html", import.meta.url), "utf8");
@@ -37345,13 +37654,13 @@ try {
   const appScript = (await build({ entryPoints: [fileURLToPath(new URL("./app.mjs", import.meta.url))], bundle: true, platform: "browser", format: "esm", write: false })).outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
   appHtml = (await readFile2(new URL("./app.html", import.meta.url), "utf8")).replace("/* APP_BUNDLE */", () => appScript);
 }
-var eventClients = /* @__PURE__ */ new Set();
-var eventEndpoint;
-function panelEvents() {
-  eventEndpoint ??= new Promise((resolve, reject) => {
-    const path = `/events/${randomUUID2()}`;
+var eventServer;
+var eventBase;
+function ensureEventServer() {
+  eventBase ??= new Promise((resolve, reject) => {
     const listener = createServer((req, res) => {
-      if (req.method !== "GET" || req.url !== path || req.headers.host !== `127.0.0.1:${listener.address().port}`) {
+      const ctx = req.method === "GET" ? eventRoutes.get(req.url) : void 0;
+      if (!ctx || req.headers.host !== `127.0.0.1:${listener.address().port}`) {
         res.writeHead(404).end();
         return;
       }
@@ -37362,16 +37671,22 @@ function panelEvents() {
         "X-Content-Type-Options": "nosniff"
       });
       res.write(": connected\n\n");
-      eventClients.add(res);
-      res.once("close", () => eventClients.delete(res));
+      ctx.eventClients.add(res);
+      res.once("close", () => ctx.eventClients.delete(res));
     });
+    eventServer = listener;
     listener.once("error", reject);
-    listener.listen(0, "127.0.0.1", () => resolve(new URL(`http://127.0.0.1:${listener.address().port}${path}`)));
+    listener.listen(0, "127.0.0.1", () => resolve(`http://127.0.0.1:${listener.address().port}`));
   }).catch(() => null);
-  return eventEndpoint;
+  return eventBase;
+}
+async function panelEvents(ctx) {
+  const base = await ensureEventServer();
+  if (!base) return null;
+  return new URL(ctx ? `${base}/events/${ctx.eventId}` : base);
 }
 server.registerResource("milestone-panel", APP_URI, { mimeType: "text/html;profile=mcp-app" }, async () => {
-  const endpoint = await panelEvents();
+  const endpoint = await panelEvents(defaultContext);
   return { contents: [{
     uri: APP_URI,
     mimeType: "text/html;profile=mcp-app",
@@ -37379,113 +37694,193 @@ server.registerResource("milestone-panel", APP_URI, { mimeType: "text/html;profi
     _meta: { ui: { prefersBorder: true, csp: { connectDomains: endpoint ? [endpoint.origin] : [], resourceDomains: [] } } }
   }] };
 });
-async function panelState() {
-  const [existing, test] = await Promise.all([source ? readPool(source) : Promise.resolve({ goals: [], errors: [], revision: "" }), store.snapshot()]);
+function stopWatchers(ctx) {
+  clearTimeout(ctx.changeTimer);
+  for (const watcher of ctx.watchers) watcher.close();
+  ctx.watchers = [];
+  ctx.watching = false;
+}
+function ensureWatchers(ctx) {
+  if (ctx.watching) return;
+  const dirs = [...ctx.source ? [join2(ctx.source, ".goals")] : [], ctx.store.goals, ctx.store.runtime];
+  const attached = [];
+  try {
+    for (const dir of dirs) {
+      const watcher = watch(dir, (_event, name) => {
+        if (name !== null && idOfFile(String(name)) === void 0 && String(name) !== "project.json") return;
+        clearTimeout(ctx.changeTimer);
+        ctx.changeTimer = setTimeout(() => {
+          void notifyChanged(ctx);
+        }, 75);
+      });
+      watcher.on("error", () => {
+        stopWatchers(ctx);
+        void notifyChanged(ctx);
+      });
+      attached.push(watcher);
+    }
+  } catch {
+    for (const watcher of attached) watcher.close();
+    return;
+  }
+  ctx.watchers = attached;
+  ctx.watching = true;
+}
+async function panelState(ctx) {
+  const [existing, test] = await Promise.all([ctx.source ? readPool(ctx.source) : Promise.resolve({ goals: [], errors: [], revision: "" }), ctx.store.snapshot()]);
+  ensureWatchers(ctx);
   const rows = (pool) => treeOrder(pool).filter((x) => x.goal.status !== "dropped").map(({ goal, depth }) => ({ id: goal.id, status: goal.status, title: goal.title, depth, label: labelOf(goal) }));
   const revision = createHash2("sha256").update(JSON.stringify([existing.revision, test.revision, test.run, test.drafts])).digest("hex");
-  return { version: version2, source, scratch, project: scratch, projectName, revision, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
+  return { version: version2, source: ctx.source, scratch: ctx.root, project: ctx.root, projectName: ctx.projectName, revision, stateUri: ctx.stateUri, existing: { ...existing, rows: rows(existing) }, test: { ...publicPool(test), rows: rows(test) }, run: publicRun(test.run) };
 }
-server.registerResource("milestone-state", STATE_URI, { mimeType: "application/json" }, async () => ({
-  contents: [{ uri: STATE_URI, mimeType: "application/json", text: JSON.stringify(await panelState()) }]
-}));
+async function readPanelState(ctx) {
+  const data = await panelState(ctx);
+  if (ctx.previousRevision === void 0) ctx.previousRevision = data.revision;
+  return data;
+}
+function parseStateUri(rawUri) {
+  let url2;
+  try {
+    url2 = new URL(rawUri);
+  } catch {
+    return null;
+  }
+  if (`${url2.protocol}//${url2.host}${url2.pathname}` !== STATE_URI) return null;
+  return url2;
+}
+if (multiProject) {
+  server.registerResource("milestone-state", new ResourceTemplate(`${STATE_URI}{?project}`, { list: void 0 }), { mimeType: "application/json" }, async (uri, variables) => {
+    const project = uri.searchParams.get("project") ?? (typeof variables.project === "string" ? variables.project : void 0);
+    const ctx = await resolveContext(project);
+    return { contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(await readPanelState(ctx)) }] };
+  });
+} else {
+  server.registerResource("milestone-state", STATE_URI, { mimeType: "application/json" }, async () => ({
+    contents: [{ uri: STATE_URI, mimeType: "application/json", text: JSON.stringify(await readPanelState(defaultContext)) }]
+  }));
+}
 server.server.registerCapabilities({ resources: { subscribe: true } });
-var subscribed = false;
 server.server.setRequestHandler(SubscribeRequestSchema, async ({ params }) => {
-  if (params.uri !== STATE_URI) throw new Error("Unknown subscription resource");
-  subscribed = true;
+  if (!multiProject) {
+    if (params.uri !== STATE_URI) throw new Error("Unknown subscription resource");
+    defaultContext.subscribedUris.add(STATE_URI);
+    return {};
+  }
+  const url2 = parseStateUri(params.uri);
+  const project = url2?.searchParams.get("project") ?? void 0;
+  if (!url2 || !project) throw new Error("Unknown subscription resource");
+  const ctx = await resolveContext(project);
+  await readPanelState(ctx);
+  ctx.subscribedUris.add(params.uri);
   return {};
 });
 server.server.setRequestHandler(UnsubscribeRequestSchema, async ({ params }) => {
-  if (params.uri !== STATE_URI) throw new Error("Unknown subscription resource");
-  subscribed = false;
+  if (!multiProject) {
+    if (params.uri !== STATE_URI) throw new Error("Unknown subscription resource");
+    defaultContext.subscribedUris.delete(STATE_URI);
+    return {};
+  }
+  const url2 = parseStateUri(params.uri);
+  if (!url2) throw new Error("Unknown subscription resource");
+  for (const ctx of contexts.values()) ctx.subscribedUris.delete(params.uri);
   return {};
 });
-var changeTimer;
-var previousRevision;
-var changeToken = randomUUID2();
-var waitingPanels = /* @__PURE__ */ new Set();
-function wakePanels() {
-  changeToken = randomUUID2();
-  for (const finish of waitingPanels) finish();
+function wakePanels(ctx) {
+  ctx.changeToken = randomUUID2();
+  for (const finish of ctx.waitingPanels) finish();
 }
-async function notifyChanged() {
+async function notifyChanged(ctx) {
   try {
-    const data = await panelState();
+    const data = await panelState(ctx);
     const revision = data.revision;
-    if (revision === previousRevision) return;
-    previousRevision = revision;
-    wakePanels();
-    for (const client of eventClients) client.write("data: changed\n\n");
-    if (subscribed) await server.server.sendResourceUpdated({ uri: STATE_URI });
+    if (revision === ctx.previousRevision) return;
+    ctx.previousRevision = revision;
+    wakePanels(ctx);
+    for (const client of ctx.eventClients) client.write("data: changed\n\n");
+    for (const uri of ctx.subscribedUris) await server.server.sendResourceUpdated({ uri });
   } catch {
-    wakePanels();
-    if (subscribed) await server.server.sendResourceUpdated({ uri: STATE_URI }).catch(() => {
+    wakePanels(ctx);
+    for (const uri of ctx.subscribedUris) await server.server.sendResourceUpdated({ uri }).catch(() => {
     });
   }
 }
-var watchers = [...source ? [join2(source, ".goals")] : [], store.goals, store.runtime].map((dir) => watch(dir, (_event, name) => {
-  if (name !== null && idOfFile(String(name)) === void 0 && String(name) !== "project.json") return;
-  clearTimeout(changeTimer);
-  changeTimer = setTimeout(() => {
-    void notifyChanged();
-  }, 75);
-}));
-for (const watcher of watchers) watcher.on("error", () => {
-  void notifyChanged();
-});
-await notifyChanged();
+if (defaultContext) {
+  ensureWatchers(defaultContext);
+  await notifyChanged(defaultContext);
+}
+var projectSchema = external_exports.string().min(1).describe("Absolute path to the workspace directory");
+var modelProjectField = multiProject ? projectSchema : projectSchema.optional();
+var panelProjectField = projectSchema.optional();
 server.registerTool("open_app", {
   title: "Milestone",
   description: "Show Milestone goals, deliverables and progress. Open Milestone from the side panel for a persistent view, or call this tool for an inline view. All changes happen through conversation.",
-  inputSchema: {},
+  inputSchema: { project: modelProjectField },
   annotations: { readOnlyHint: true },
   _meta: {
     ui: { resourceUri: APP_URI },
     "openai/ui": { entrypoints: [{ type: "thread" }] }
   }
-}, guarded(panelState));
+}, guarded(async ({ project } = {}) => {
+  const ctx = await resolveContext(project);
+  const after = ctx.changeToken;
+  return { ...await readPanelState(ctx), changeToken: after };
+}));
 server.registerTool("read_panel", {
   description: "Read live goal data for the Milestone panel.",
-  inputSchema: {},
+  inputSchema: { project: panelProjectField },
   annotations: { readOnlyHint: true },
   _meta: { ui: { visibility: ["app"] } }
-}, guarded(async () => {
-  const after = changeToken;
-  return { ...await panelState(), changeToken: after, eventUrl: (await panelEvents())?.href };
+}, guarded(async ({ project } = {}) => {
+  const ctx = await resolveContext(project);
+  const after = ctx.changeToken;
+  return { ...await readPanelState(ctx), changeToken: after, eventUrl: (await panelEvents(ctx))?.href };
 }));
 server.registerTool("wait_panel", {
   description: "Wait for a project change or renew the wait without reading project data.",
-  inputSchema: { after: external_exports.uuid() },
+  inputSchema: { after: external_exports.uuid(), project: panelProjectField },
   annotations: { readOnlyHint: true },
   _meta: { ui: { visibility: ["app"] } }
-}, async ({ after }, { signal }) => {
-  if (after === changeToken && !signal.aborted) {
+}, async ({ after, project }, { signal }) => {
+  let ctx;
+  try {
+    ctx = await resolveContext(project);
+  } catch (error62) {
+    return { isError: true, content: [{ type: "text", text: error62.message }] };
+  }
+  if (after === ctx.changeToken && !signal.aborted) {
     await new Promise((resolve) => {
       function finish() {
         clearTimeout(timeout);
-        waitingPanels.delete(finish);
+        ctx.waitingPanels.delete(finish);
         signal.removeEventListener("abort", finish);
         resolve();
       }
       const timeout = setTimeout(finish, 25e3);
-      waitingPanels.add(finish);
+      ctx.waitingPanels.add(finish);
       signal.addEventListener("abort", finish, { once: true });
     });
   }
-  return result({ changeToken });
+  return result({ changeToken: ctx.changeToken });
 });
 server.registerTool("list_goals", {
   description: "Read the current project goals, content revision and execution state with dataset=project. The optional existing reference project is read-only. test is a legacy alias for project.",
-  inputSchema: { dataset: external_exports.enum(["project", "existing", "test"]) },
+  inputSchema: { dataset: external_exports.enum(["project", "existing", "test"]), project: modelProjectField },
   annotations: { readOnlyHint: true }
-}, guarded(async ({ dataset }) => ({ dataset, ...publicPool(dataset === "existing" && source ? await readPool(source) : await store.snapshot()) })));
+}, guarded(async ({ dataset, project }) => {
+  const ctx = await resolveContext(project);
+  const snapshot = dataset === "existing" && ctx.source ? await readPool(ctx.source) : await ctx.store.snapshot();
+  if (!(dataset === "existing" && ctx.source)) ensureWatchers(ctx);
+  return { dataset, ...publicPool(snapshot) };
+}));
 var revisionSchema = external_exports.string().regex(/^[a-f0-9]{64}$/);
 var positive = external_exports.number().int().positive();
 var taskInput = external_exports.object({ n: positive.optional(), title: external_exports.string().min(1), acceptance: external_exports.string().min(1) });
-var changed = async (revision, fn) => {
-  const data = await store.change(revision, fn);
-  void notifyChanged();
-  return { ...publicPool(data), panelEvent: { type: "project-changed", project: scratch, revision: data.revision } };
+var changed = async (project, revision, fn) => {
+  const ctx = await resolveContext(project);
+  const data = await ctx.store.change(revision, fn);
+  ensureWatchers(ctx);
+  void notifyChanged(ctx);
+  return { ...publicPool(data), panelEvent: { type: "project-changed", project: ctx.root, revision: data.revision } };
 };
 function projectPlan(pool, args) {
   const goal = pool.goals.find((g) => g.id === args.id);
@@ -37512,6 +37907,7 @@ server.registerTool("manage_goal", {
   inputSchema: {
     action: external_exports.enum(["create", "planning", "propose", "plan", "focus", "add", "skip", "done", "drop", "move"]),
     revision: revisionSchema,
+    project: modelProjectField,
     id: positive.optional(),
     title: external_exports.string().optional(),
     parent: positive.optional(),
@@ -37529,7 +37925,7 @@ server.registerTool("manage_goal", {
   },
   annotations: { readOnlyHint: false, destructiveHint: false },
   _meta: { ui: { resourceUri: APP_URI, visibility: ["model"] } }
-}, guarded((args) => changed(args.revision, (pool, run, drafts) => {
+}, guarded((args) => changed(args.project, args.revision, (pool, run, drafts) => {
   if (["plan", "add", "skip", "done", "drop"].includes(args.action) && args.confirmed !== true) throw new Error("Confirm the proposed change with the user before saving it");
   if (busyRun(run) && !["create", "planning", "propose"].includes(args.action)) throw new Error("A task is scheduled or running. Pause and wait for the current task before changing the plan or active goal.");
   if (args.action !== "create" && !args.id) throw new Error("id is required");
@@ -37598,10 +37994,10 @@ var taskUpdates = (run, id, task, value) => {
 };
 server.registerTool("report_task", {
   description: "Report project task progress: pause for a normal handoff, block with a concrete obstacle, or resume after checking the previous conversation stopped. This records state only; it does not control or schedule a conversation.",
-  inputSchema: { action: external_exports.enum(["pause", "block", "resume"]), id: positive, task: positive, runId: external_exports.string(), revision: revisionSchema, reason: external_exports.string().trim().min(1), confirmed: external_exports.boolean().optional() },
+  inputSchema: { action: external_exports.enum(["pause", "block", "resume"]), id: positive, task: positive, runId: external_exports.string(), revision: revisionSchema, project: modelProjectField, reason: external_exports.string().trim().min(1), confirmed: external_exports.boolean().optional() },
   annotations: { readOnlyHint: false, destructiveHint: false },
   _meta: { ui: { resourceUri: APP_URI, visibility: ["model"] } }
-}, guarded((args) => changed(args.revision, (pool, run) => {
+}, guarded((args) => changed(args.project, args.revision, (pool, run) => {
   if (!run || run.id !== args.runId || run.goal !== args.id || run.task !== args.task) throw new Error("Task assignment changed; read the current state");
   const goal = pool.goals.find((g) => g.id === args.id);
   const task = goal?.tasks.find((t) => t.n === args.task);
@@ -37616,10 +38012,10 @@ server.registerTool("report_task", {
 })));
 server.registerTool("start_task", {
   description: "Claim an explicitly authorized project deliverable before work. Returns an assignment runId for reporting results. Manage implementation steps in the conversation. Never schedules another task.",
-  inputSchema: { id: positive, task: positive, revision: revisionSchema },
+  inputSchema: { id: positive, task: positive, revision: revisionSchema, project: modelProjectField },
   annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
   _meta: { ui: { resourceUri: APP_URI, visibility: ["model"] } }
-}, guarded((args) => changed(args.revision, (pool, run) => {
+}, guarded((args) => changed(args.project, args.revision, (pool, run) => {
   if (busyRun(run)) throw new Error("Another task is assigned; inspect and explicitly resume or pause it first");
   const task = pool.goals.find((g) => g.id === args.id)?.tasks.find((t) => t.n === args.task);
   if (task?.mark === "~") throw new Error("An unfinished assignment needs explicit review before resuming");
@@ -37628,10 +38024,10 @@ server.registerTool("start_task", {
 })));
 server.registerTool("finish_task", {
   description: "Finish an owned running task only after checking its acceptance. Include a concrete summary and verification evidence. The last task also requires goalAcceptanceChecked=true. Record only this deliverable. Further project work requires authorization from the conversation; no next task is scheduled. Never finish a failed task.",
-  inputSchema: { id: positive, task: positive, runId: external_exports.string(), revision: revisionSchema, summary: external_exports.string().trim().min(1), evidence: external_exports.string().trim().min(1), goalAcceptanceChecked: external_exports.boolean().optional() },
+  inputSchema: { id: positive, task: positive, runId: external_exports.string(), revision: revisionSchema, project: modelProjectField, summary: external_exports.string().trim().min(1), evidence: external_exports.string().trim().min(1), goalAcceptanceChecked: external_exports.boolean().optional() },
   annotations: { readOnlyHint: false, destructiveHint: false },
   _meta: { ui: { resourceUri: APP_URI, visibility: ["model"] } }
-}, guarded((args) => changed(args.revision, (pool, run) => {
+}, guarded((args) => changed(args.project, args.revision, (pool, run) => {
   if (run?.owner !== owner || run?.id !== args.runId || run?.goal !== args.id || run?.task !== args.task || run?.status !== "running") throw new Error("Only the owning executor can finish the current task; the ticket is stale or paused");
   const out = checked(finishTask(pool, args.id, args.task));
   const goal = out.write.find((g) => g.id === args.id);
@@ -37640,14 +38036,15 @@ server.registerTool("finish_task", {
   return { ...out, run: { ...run, status: "stopped", updates: taskUpdates(run, args.id, args.task), receipts, reason: goal.status === "done" ? "\u76EE\u6807\u5DF2\u9A8C\u6536\u5B8C\u6210" : "\u4EFB\u52A1\u5DF2\u5B8C\u6210" }, extra: { instruction: "Project progress saved. Decide further work from the user-authorized scope in the conversation." } };
 })));
 var http;
-var panelUrl;
+var panelBase;
 server.registerTool("open_panel", {
   description: "Return the live read-only Milestone panel URL. Open it in the Codex right browser panel.",
-  inputSchema: {},
+  inputSchema: { project: modelProjectField },
   annotations: { readOnlyHint: true }
-}, guarded(async () => {
+}, guarded(async ({ project } = {}) => {
+  const ctx = await resolveContext(project);
+  panelRoutes.set(`/${ctx.panelToken}`, ctx);
   if (!http) {
-    const token = randomUUID2();
     http = createServer(async (req, res) => {
       const headers = {
         "Content-Type": "text/html; charset=utf-8",
@@ -37656,13 +38053,14 @@ server.registerTool("open_panel", {
         "X-Content-Type-Options": "nosniff",
         "Referrer-Policy": "no-referrer"
       };
-      if (req.method !== "GET" || req.url !== `/${token}` || req.headers.host !== new URL(panelUrl).host) {
+      const target = req.method === "GET" ? panelRoutes.get(req.url) : void 0;
+      if (!target || req.headers.host !== new URL(panelBase).host) {
         res.writeHead(404, headers).end("Not found");
         return;
       }
       try {
-        const [existing, test] = await Promise.all([source ? readPool(source) : Promise.resolve({ goals: [], errors: [] }), store.snapshot()]);
-        res.writeHead(200, headers).end(panel({ source, scratch, existing, test }));
+        const [existing, test] = await Promise.all([target.source ? readPool(target.source) : Promise.resolve({ goals: [], errors: [] }), target.store.snapshot()]);
+        res.writeHead(200, headers).end(panel({ source: target.source, scratch: target.root, existing, test }));
       } catch (error62) {
         res.writeHead(500, headers).end("Unable to read goal files");
       }
@@ -37671,15 +38069,15 @@ server.registerTool("open_panel", {
       http.once("error", fail);
       http.listen(0, "127.0.0.1", ok);
     });
-    panelUrl = `http://127.0.0.1:${http.address().port}/${token}`;
+    panelBase = `http://127.0.0.1:${http.address().port}`;
   }
-  return { url: panelUrl, placement: "right", refreshSeconds: 2 };
+  return { url: `${panelBase}/${ctx.panelToken}`, placement: "right", refreshSeconds: 2 };
 }));
 var transport = new StdioServerTransport();
 await server.connect(transport);
 var close = () => {
-  clearTimeout(changeTimer);
-  for (const watcher of watchers) watcher.close();
+  for (const ctx of contexts.values()) stopWatchers(ctx);
+  eventServer?.close();
   http?.close();
   process.exit(0);
 };

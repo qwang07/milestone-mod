@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "milestone": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/server.mjs"
+      ]
+    }
+  }
+}
