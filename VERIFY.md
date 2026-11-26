@@ -10,6 +10,17 @@ Close the tab.
 Reopen it from the same menu and check that it shows the latest state.
 Use two test projects to verify project isolation.
 
+## Claude Code pane, 2026-11-26
+
+Claude Code 2.1.332, Linux, `claude -p` with `--plugin-dir` on a built `--host claude` package.
+
+- A hooks module that returns `watchPaths` from classic SessionStart receives classic FileChanged for `.goals/project.json`, both for a direct write and for an atomic rename like `ProjectStore.atomic`.
+- `read_panel` must be listed to the host: Claude Code hides `visibility: ['app']` tools from `$.mcp.call` too. The Claude Code package starts the server with `--model-read-panel`.
+- `/milestone` is taken by the plugin's own skill, so the pane command is `/milestone-panel`.
+- With the real server, `list_goals` then `manage_goal(action=create)` in a fresh project left the pane state at `sync: live` showing the new goal.
+- `claude plugin validate` and `claude plugin test` pass on the package (6 pane tests over terminal, desktop, vscode and mobile).
+- Not yet observed on screen in the desktop app or VS Code.
+
 ## Codex thread entrypoint, 2026-11-19
 
 Passed all 49 automated tests.

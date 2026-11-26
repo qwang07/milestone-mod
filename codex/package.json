@@ -7,7 +7,7 @@
   },
   "scripts": {
     "verify": "node verify.mjs",
-    "test": "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs",
+    "test": "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs claude.test.mjs",
     "build": "node build.mjs"
   },
   "dependencies": {

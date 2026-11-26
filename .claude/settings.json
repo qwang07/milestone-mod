@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm ci --prefix codex)",
+      "Bash(npm test --prefix codex)",
+      "Bash(npm --prefix codex test)",
+      "Bash(npm test)",
+      "Bash(npm run build:*)",
+      "Bash(node codex/build.mjs:*)",
+      "Bash(node build.mjs:*)",
+      "Bash(claude plugin validate:*)",
+      "Bash(claude plugin test:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Edit(/.goals/**)",
+      "Write(/.goals/**)",
+      "Edit(/.milestone-runtime/**)",
+      "Write(/.milestone-runtime/**)"
+    ]
+  }
+}
