@@ -14,7 +14,7 @@ Use Node.js 22.18 or later. Make `node` available on the `PATH` of the Claude Co
 ## Use
 
 - Talk about goals and acceptance in the conversation. Claude records them with the Milestone tools.
-- Run `/milestone-panel` to open the pane. It opens on its own at session start when the window is wide enough.
+- Run `/ms-panel` to open the pane. It opens on its own at session start when the window is wide enough.
 - The pane is read-only. Expand a goal or task with its button to read acceptance, plans and evidence.
 
 ## How the pane stays current

@@ -18,7 +18,7 @@ test('the Claude Code package bundles the shared server, skill and pane module',
     assert.deepEqual(JSON.parse(await readFile(join(out, 'hooks', 'hooks.json'), 'utf8')), { modules: ['./register.tsx'] });
     assert.equal(await readFile(join(out, 'hooks', 'view.mjs'), 'utf8'), await readFile(new URL('./view.mjs', import.meta.url), 'utf8'));
     const skill = await readFile(join(out, 'skills', 'milestone', 'SKILL.md'), 'utf8');
-    assert.match(skill, /`\/milestone-panel`/);
+    assert.match(skill, /`\/ms-panel`/);
     assert.doesNotMatch(skill, /More tools/);
   } finally { await rm(out, { recursive: true, force: true }); }
 });

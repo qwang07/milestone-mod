@@ -40,6 +40,7 @@ Run filesystem event tests outside a sandbox that suppresses `fs.watch`.
 - Keep the three packages on the same `server.mjs` and `panel.html`. CI compares them.
 - A hooks module calls `$` only from top-level functions or hooks, never from a helper defined inside a hook.
 - Keep user-facing panel text in Chinese, matching the existing labels.
+- Name slash commands with the `ms-` prefix (`/ms-panel`).
 
 ## Release
 

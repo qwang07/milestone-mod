@@ -17,7 +17,7 @@ export function skillFor(host, skill) {
   if (host !== 'claude') return skill;
   if (!skill.includes(CODEX_PANEL) || !skill.includes(CODEX_INLINE)) throw new Error('SKILL.md panel lines changed; update skillFor');
   return skill
-    .replace(CODEX_PANEL, 'The Milestone pane beside the conversation shows goals and progress and updates live. The user opens it with `/milestone-panel`.')
+    .replace(CODEX_PANEL, 'The Milestone pane beside the conversation shows goals and progress and updates live. The user opens it with `/ms-panel`.')
     .replace(CODEX_INLINE, 'Use `open_app` when the user wants to see Milestone; in Claude Code it opens the Milestone pane.');
 }
 

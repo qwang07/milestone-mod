@@ -30,7 +30,7 @@ const panel = (finished: boolean) => ({
 })
 
 const RUN = {
-  command: 'milestone-panel', args: '',
+  command: 'ms-panel', args: '',
   origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 },
 } as const
 
@@ -50,7 +50,7 @@ function engine(on: On, state: { finished: boolean; reads: number; fail?: string
   on('classic.FileChanged', () => ({}))
   on('session.root', () => ({ value: ROOT }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
-  on('command.register', () => ({ value: { command: 'milestone-panel' } }))
+  on('command.register', () => ({ value: { command: 'ms-panel' } }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('mcp.connect', () => ({ value: { isConnected: true, server: SERVER } }))
   on('mcp.call', (_, e) => {
