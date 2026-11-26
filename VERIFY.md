@@ -20,6 +20,7 @@ Claude Code 2.1.332, Linux, `claude -p` with `--plugin-dir` on a built `--host c
 - The pane command is `/ms-panel`, following the project's `ms-` command prefix (`/milestone` itself is the plugin's skill).
 - With the real server, `list_goals` then `manage_goal(action=create)` in a fresh project left the pane state at `sync: live` showing the new goal.
 - `claude plugin validate` and `claude plugin test` pass on the package (6 pane tests over terminal, desktop, vscode and mobile).
+- The pane reads only once `.goals/` exists: a session in a project without Milestone leaves no `.goals/` or `.milestone-runtime/` behind, and `list_goals` initializing the project brings the pane live.
 - Not yet observed on screen in the desktop app or VS Code.
 
 ## Codex thread entrypoint, 2026-11-19

@@ -45,7 +45,8 @@ const PANE = {
 } as const
 
 /** Stands for the engine and the Milestone MCP server; counts panel reads. */
-function engine(on: On, state: { finished: boolean; reads: number; fail?: string | undefined }) {
+function engine(on: On, state: { finished: boolean; reads: number; fail?: string | undefined; fresh?: boolean }) {
+  on('fs.exists', (_, e) => ({ value: !(state.fresh && e.path === `${ROOT}/.goals`) }))
   on('classic.SessionStart', () => ({}))
   on('classic.FileChanged', () => ({}))
   on('session.root', () => ({ value: ROOT }))
@@ -143,6 +144,21 @@ test('a failed read shows the reason and a refresh button', async ($, on) => {
 
   state.fail = undefined
   await $.ui.press({ plugin: 'milestone', key: 'refresh' })
+  expect(await ui.find({ type: 'Text', text: '发布 Claude Code 版' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a project without Milestone is left untouched until the conversation initializes it', async ($, on) => {
+  const state = { finished: false, reads: 0, fresh: true }
+  engine(on, state)
+  await $.command.run(RUN)
+  expect(state.reads).toBe(0)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: /还没有使用 Milestone/ })).toBeDefined()
+
+  state.fresh = false
+  await $.classic.FileChanged({ file_path: FILE, event: 'add' })
+  expect(state.reads).toBe(1)
   expect(await ui.find({ type: 'Text', text: '发布 Claude Code 版' })).toBeDefined()
   await ui.unmount()
 })

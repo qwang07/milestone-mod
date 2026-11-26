@@ -53,6 +53,12 @@ async function refresh($: $): Promise<void> {
       again = false
       try {
         const project = await projectRoot($)
+        // Reading creates .goals/ in a project that has none. Wait until the
+        // conversation initializes Milestone; FileChanged then reports the folder.
+        if (!(await $.fs.exists(`${project}${GOALS_DIR}`))) {
+          await update($, paneAtom, () => ({ view: null, sync: 'idle' as const, message: '' }))
+          continue
+        }
         const result = await $.mcp.call(await serverName($), 'read_panel', { project })
         const text = result.content.find(block => block.type === 'text')
         const body = text && 'text' in text ? String(text.text) : ''
@@ -167,7 +173,7 @@ export const register: Register = on => {
     if (!view) {
       return (
         <Box flexDirection="column" gap={1}>
-          <Text dimColor>{sync === 'error' ? status : '正在读取项目…'}</Text>
+          <Text dimColor wrap="wrap">{sync === 'error' ? status : sync === 'idle' ? '这个项目还没有使用 Milestone。在对话中说“初始化 Milestone”即可开始。' : '正在读取项目…'}</Text>
           {sync === 'error' && <Button key="refresh" label="刷新" onPress={() => refresh($)} />}
         </Box>
       )

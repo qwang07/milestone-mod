@@ -34,8 +34,8 @@ export type PanelView = {
 /** What the pane shows: the last view read, and how the pane stays current. */
 export type PaneState = {
   view: PanelView | null
-  /** 'live' while file events arrive, 'reading', or 'error' with `message`. */
-  sync: 'live' | 'reading' | 'error'
+  /** 'live' while file events arrive, 'reading', 'idle' before the project uses Milestone, or 'error' with `message`. */
+  sync: 'live' | 'reading' | 'idle' | 'error'
   message: string
 }
 
