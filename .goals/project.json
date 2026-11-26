@@ -332,7 +332,7 @@
     {
       "id": 8,
       "title": "验证工具结果触发面板更新",
-      "status": "planning",
+      "status": "dropped",
       "parent": null,
       "order": 8,
       "split": "",
@@ -356,23 +356,199 @@
         }
       ],
       "tasks": []
-    }
-  ],
-  "run": null,
-  "drafts": {
-    "8": {
-      "id": "5cd2076f-3067-4abc-9588-aee82e099d39",
-      "goal": 8,
-      "base": "---\nid: 8\ntitle: 验证工具结果触发面板更新\nstatus: planning\nparent: \norder: 8\nsplit: \ncreated: 2026-11-17\n---\n## Description\n仅用于本次实际面板事件验证，检查工具成功后无需点击刷新即可显示新目标。\n## Acceptance\n## Approach\n## Decisions\n",
-      "acceptance": "两个已打开的面板自动显示相同的新状态。",
-      "approach": "同一项目的两个窗口保持可见，从一个对话写入变更。",
-      "tasks": [
+    },
+    {
+      "id": 9,
+      "title": "测试 · 完成首页设计稿",
+      "status": "dropped",
+      "parent": null,
+      "order": 9,
+      "split": "",
+      "created": "2026-11-19",
+      "sections": [],
+      "tasks": []
+    },
+    {
+      "id": 10,
+      "title": "测试 · 上线项目搜索",
+      "status": "dropped",
+      "parent": null,
+      "order": 10,
+      "split": "",
+      "created": "2026-11-19",
+      "sections": [],
+      "tasks": []
+    },
+    {
+      "id": 11,
+      "title": "测试 · 发布使用指南",
+      "status": "dropped",
+      "parent": null,
+      "order": 11,
+      "split": "",
+      "created": "2026-11-19",
+      "sections": [],
+      "tasks": []
+    },
+    {
+      "id": 12,
+      "title": "测试 · 完成销售数据分析",
+      "status": "dropped",
+      "parent": null,
+      "order": 12,
+      "split": "tasks",
+      "created": "2026-11-19",
+      "sections": [
         {
-          "title": "双查看器测试 · 白桃",
-          "acceptance": "两个窗口都在无需刷新或切换的情况下显示待确认。"
+          "heading": "Description",
+          "body": "面板演示，使用虚构的销售数据。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "演示面板可查看各任务状态和验收信息。"
+        },
+        {
+          "heading": "Approach",
+          "body": "按示例的五项任务展示分析流程。"
         }
       ],
-      "createdAt": "2026-11-18T04:47:30.034Z"
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "整理原始数据",
+          "acceptance": "列出两个月的模拟销售额"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "核对数据口径",
+          "acceptance": "核对币种、周期和两月合计"
+        },
+        {
+          "n": 3,
+          "mark": " ",
+          "title": "分析销售趋势",
+          "acceptance": "计算销售额环比变化"
+        },
+        {
+          "n": 4,
+          "mark": " ",
+          "title": "汇总关键发现",
+          "acceptance": "总结趋势和样本限制"
+        },
+        {
+          "n": 5,
+          "mark": " ",
+          "title": "生成分析报告",
+          "acceptance": "整合口径、趋势与结论"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "更新 MCP 插件，使用 MCP Apps UI 适配 Codex 与 Antigravity",
+      "status": "done",
+      "parent": null,
+      "order": 13,
+      "split": "tasks",
+      "created": "2026-11-19",
+      "sections": [
+        {
+          "heading": "Description",
+          "body": "Codex 继续使用原生 MCP Apps 面板。Antigravity 使用官方 Sidecar UI Extension 承载同一份 MCP Apps HTML。"
+        },
+        {
+          "heading": "Acceptance",
+          "body": "在 Antigravity 先验证从右侧「＋」打开、关闭重开和实时刷新，再在 Codex 回归同样的操作。验证工作区隔离和面板关闭清理。两端验收通过后发布到 qwang07/plugins。"
+        },
+        {
+          "heading": "Approach",
+          "body": "为 Antigravity 提供 Sidecar 面板入口和 MCP Apps 宿主桥。桥接现有只读 MCP 面板工具和工作区。共用同一份 panel.html 和目标数据。用隔离项目验证后构建可分发的插件包。"
+        },
+        {
+          "heading": "Decisions",
+          "body": "用户已明确选用 Sidecar。先验收 Antigravity，再回归 Codex。双端通过后发布。"
+        }
+      ],
+      "tasks": [
+        {
+          "n": 1,
+          "mark": "x",
+          "title": "提供共用 MCP Apps 界面与两端原生入口",
+          "acceptance": "Antigravity 通过 Sidecar 从右侧「＋」打开共享面板，并通过关闭重开、自动刷新的桌面验证。Codex 插件包包含字节相同的面板 HTML。"
+        },
+        {
+          "n": 2,
+          "mark": "x",
+          "title": "验证跨宿主工作区路由和实时进度",
+          "acceptance": "回归验证 Codex 的原生入口、打开关闭重开及自动刷新。验证同项目进度一致、不同项目隔离，以及关闭后的等待清理。"
+        },
+        {
+          "n": 3,
+          "mark": "x",
+          "title": "交付两端安装说明与桌面验收记录",
+          "acceptance": "记录安装和桌面验收。两端通过后发布插件与 qwang07/plugins 安装条目，并验证分发配置。"
+        }
+      ]
     }
-  }
+  ],
+  "run": {
+    "id": "2e6cf6c2-2408-461f-9d88-fa0fe47d7668",
+    "owner": "659bc4a2-92f1-4c71-b405-70ebfd757a0c",
+    "goal": 13,
+    "task": 3,
+    "status": "stopped",
+    "updates": {
+      "12:3": {
+        "status": "paused",
+        "reason": "停止演示任务，按用户要求清理测试目标。"
+      }
+    },
+    "receipts": [
+      {
+        "goal": 12,
+        "task": 1,
+        "runId": "884650c1-9113-4a99-b5cb-8f2599b565d0",
+        "summary": "已整理两个月的模拟销售额。",
+        "evidence": "虚构样本：一月 100 元，二月 120 元。",
+        "finishedAt": "2026-11-19T04:08:52.469Z"
+      },
+      {
+        "goal": 12,
+        "task": 2,
+        "runId": "baaaaaac-4399-4636-be18-9609b8899d29",
+        "summary": "已统一月度人民币口径并核对合计。",
+        "evidence": "两个自然月均按人民币计，100 + 120 = 220 元。",
+        "finishedAt": "2026-11-19T04:08:57.584Z"
+      },
+      {
+        "goal": 13,
+        "task": 1,
+        "runId": "5f75a1e2-7fb4-41ff-9a38-2a8e5bb9e8be",
+        "summary": "Antigravity 2.33.0 的 Sidecar 已加载与 Codex 字节相同的 MCP Apps 面板，通过右侧菜单、实时更新和关闭重开实测。",
+        "evidence": "隔离工作区 B 用右侧「＋」→ Extensions → Milestone 打开；外部写入「工作区 B · Sidecar 自动刷新」后无需刷新即出现；关闭后写入的记录在重开时出现；A 面板只显示 A 的初始记录。两个包的 panel.html SHA-256 均为 88c8b6d0feee91d2ec5053f98ca8a53d181a0ebe531faabb178eb724b8981821。",
+        "finishedAt": "2026-11-19T07:02:27.894Z"
+      },
+      {
+        "goal": 13,
+        "task": 2,
+        "runId": "5430c3ad-e92c-45cf-b63b-854609d6f8bc",
+        "summary": "Codex 0.4.0 原生面板回归通过。Antigravity 和 Codex 使用同一隔离项目读取进度，关窗清理及工作区隔离验证完成。",
+        "evidence": "Codex 用户从右侧「＋」打开联调面板。15:23:01.671 写入隔离项目 B 后，15:23:01.813 触发自动读取。15:23:39 记录关闭，15:23:44 重新打开并读取。用户确认界面正常。Antigravity 实测读取同一项目 B，已验证自动刷新、关闭、重开及 A/B 项目隔离。",
+        "finishedAt": "2026-11-19T07:24:30.560Z"
+      },
+      {
+        "goal": 13,
+        "task": 3,
+        "runId": "2e6cf6c2-2408-461f-9d88-fa0fe47d7668",
+        "summary": "Milestone 0.4.0 双端发布与安装验证完成。",
+        "evidence": "在 Antigravity 桌面验证 Sidecar 加号入口、关闭重开、自动刷新及工作区隔离。在 Codex 桌面以同一份面板验证加号进入、约 140 毫秒自动刷新、关闭重开。50 项自动化测试和目录检查通过。已发布到 qwang07/plugins main，提交 361a2cbad6482d02921a6033ab0ae64f198018de。已本机安装正式包，并通过两个全新 Codex 连接验证工作区路由和共同 UI 的 SHA-256。",
+        "finishedAt": "2026-11-19T07:28:28.611Z"
+      }
+    ],
+    "startedAt": "2026-11-19T07:24:33.421Z",
+    "reason": "目标已验收完成"
+  },
+  "drafts": {}
 }
