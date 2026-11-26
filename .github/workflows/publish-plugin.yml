@@ -40,23 +40,30 @@ jobs:
           echo "value=$version" >> "$GITHUB_OUTPUT"
       - run: npm ci --prefix codex
       - run: npm test --prefix codex
-      - name: Build and validate both packages
+      - name: Build and validate all packages
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.value }}
         run: |
           packages="$RUNNER_TEMP/milestone-packages"
           node codex/build.mjs --marketplace qwang07 --out "$packages/codex"
           node codex/build.mjs --host antigravity --out "$packages/antigravity"
+          node codex/build.mjs --host claude --out "$packages/claude"
           test "$(node -p 'require(process.argv[1]).version' "$packages/codex/.codex-plugin/plugin.json")" = "$RELEASE_VERSION"
           test "$(node -p 'require(process.argv[1]).version' "$packages/antigravity/plugin.json")" = "$RELEASE_VERSION"
+          test "$(node -p 'require(process.argv[1]).version' "$packages/claude/.claude-plugin/plugin.json")" = "$RELEASE_VERSION"
           test -s "$packages/codex/.mcp.json"
           test -s "$packages/antigravity/mcp_config.json"
           test -s "$packages/antigravity/sidecars/panel/sidecar.json"
+          test -s "$packages/claude/.mcp.json"
+          test -s "$packages/claude/hooks/register.tsx"
           cmp "$packages/codex/panel.html" "$packages/antigravity/panel.html"
           cmp "$packages/codex/server.mjs" "$packages/antigravity/server.mjs"
+          cmp "$packages/codex/server.mjs" "$packages/claude/server.mjs"
           node --check "$packages/codex/server.mjs"
           node --check "$packages/antigravity/sidecars/panel/main.mjs"
-          tar -czf "$RUNNER_TEMP/milestone-packages.tar.gz" -C "$packages" codex antigravity
+          npx --yes @anthropic-ai/claude-code@2.1.332 plugin validate "$packages/claude"
+          npx --yes @anthropic-ai/claude-code@2.1.332 plugin test "$packages/claude"
+          tar -czf "$RUNNER_TEMP/milestone-packages.tar.gz" -C "$packages" codex antigravity claude
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: milestone-packages
@@ -94,9 +101,16 @@ jobs:
             exit 0
           fi
 
-          rm -r -- "$directory/codex" "$directory/antigravity"
+          rm -rf -- "$directory/codex" "$directory/antigravity" "$directory/claude"
           tar -xzf "$RUNNER_TEMP/milestone-packages.tar.gz" -C "$directory"
-          git add -A -- "$directory/codex" "$directory/antigravity"
+          mkdir -p .claude-plugin
+          node -e '
+            const [file, version] = process.argv.slice(1);
+            const marketplace = { name: "milestone-mod", owner: { name: "Quan Wang", url: "https://github.com/qwang07" },
+              plugins: [{ name: "milestone", source: "./plugins/milestone/claude", version, description: "Project plans, deliverables and progress" }] };
+            require("node:fs").writeFileSync(file, JSON.stringify(marketplace, null, 2) + "\n");
+          ' .claude-plugin/marketplace.json "$RELEASE_VERSION"
+          git add -A -- "$directory/codex" "$directory/antigravity" "$directory/claude" .claude-plugin/marketplace.json
           git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

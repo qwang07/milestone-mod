@@ -18,7 +18,7 @@ import packageInfo from './package.json' with { type: 'json' };
 
 const { values } = parseArgs({
   args: process.argv.slice(2),
-  options: { source: { type: 'string' }, scratch: { type: 'string' }, project: { type: 'string' } },
+  options: { source: { type: 'string' }, scratch: { type: 'string' }, project: { type: 'string' }, 'model-read-panel': { type: 'boolean' } },
 });
 if (!values.project && Boolean(values.source) !== Boolean(values.scratch)) {
   throw new Error('Use --project, or --source and --scratch for isolated verification');
@@ -303,10 +303,11 @@ server.registerTool('open_app', {
   const after = ctx.changeToken;
   return { ...await readPanelState(ctx), changeToken: after };
 }));
+// Claude Code draws the panel from a hooks module, which can only call tools the host lists.
 server.registerTool('read_panel', {
   description: 'Read live goal data for the Milestone panel.',
   inputSchema: { project: panelProjectField }, annotations: { readOnlyHint: true },
-  _meta: { ui: { visibility: ['app'] } },
+  _meta: { ui: { visibility: values['model-read-panel'] ? ['model', 'app'] : ['app'] } },
 }, guarded(async ({ project } = {}) => {
   const ctx = await resolveContext(project);
   const after = ctx.changeToken;

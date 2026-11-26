@@ -1,6 +1,6 @@
 # Milestone
 
-Manage project goals, deliverables and progress through conversation. Open the read-only panel from the right-panel `+` menu in Codex Desktop and Antigravity. See the [Codex guide](codex/README.md) and the [Antigravity guide](antigravity/README.md).
+Manage project goals, deliverables and progress through conversation. Open the read-only panel from the right-panel `+` menu in Codex Desktop and Antigravity, or with `/ms-panel` in Claude Code. See the [Codex guide](codex/README.md), the [Antigravity guide](antigravity/README.md) and the [Claude Code guide](claude/README.md).
 
 ## Goals and deliverables
 
@@ -33,6 +33,6 @@ git push origin v0.4.1
 
 Check the [Publish Milestone plugin workflow](https://github.com/qwang07/milestone-mod/actions/workflows/publish-plugin.yml).
 GitHub Actions takes the package version from the tag.
-GitHub Actions tests the tagged source and builds both packages.
-GitHub Actions updates the [`plugin` branch](https://github.com/qwang07/milestone-mod/tree/plugin/plugins/milestone) in one commit after both packages pass validation.
+GitHub Actions tests the tagged source and builds the Codex, Antigravity and Claude Code packages.
+GitHub Actions updates the [`plugin` branch](https://github.com/qwang07/milestone-mod/tree/plugin/plugins/milestone) in one commit after all packages pass validation, together with the Claude Code marketplace file.
 Run the workflow manually to test and build without publishing.
