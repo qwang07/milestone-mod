@@ -10,7 +10,7 @@ Milestone records a project's goals, deliverables, acceptance and progress throu
 - `codex/view.mjs`: the panel's view model (labels, states, ordering), shared by every panel. Change display rules here.
 - `codex/render.mjs`, `codex/app.*`: the MCP Apps HTML panel (Codex, and Antigravity through its Sidecar).
 - `antigravity/`: Antigravity Sidecar host for the HTML panel.
-- `claude/`: Claude Code hooks module (`hooks/register.tsx`), its state contract (`types/index.d.ts`) and pane tests. The pane reads `read_panel` and redraws on FileChanged for `.goals/project.json` and on Milestone tool results. No polling.
+- `claude/`: Claude Code hooks module (`hooks/register.tsx`), its state contract (`types/index.d.ts`) and pane tests. The pane reads `read_panel` and redraws on FileChanged for `.goals/project.json` (the engine watches `.goals/`) and on Milestone tool results. No polling.
 - `codex/SKILL.md`: the conversation workflow for every host. `skillFor` in `codex/build.mjs` swaps only the panel lines for Claude Code.
 - `codex/build.mjs`: builds a host package with `--host codex|antigravity|claude`.
 

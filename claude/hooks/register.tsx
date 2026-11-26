@@ -15,7 +15,8 @@ const PANE = 'milestone'
 const TITLE = 'Milestone'
 const SERVER_KEY = 'milestone'
 const COMMAND = 'ms-panel'
-const PROJECT_FILE = '/.goals/project.json'
+const GOALS_DIR = '/.goals'
+const PROJECT_FILE = `${GOALS_DIR}/project.json`
 const MILESTONE_TOOL = /^mcp__.*milestone.*__(list_goals|manage_goal|start_task|report_task|finish_task|open_app|open_panel)$/
 const OPEN_TOOL = /__(open_app|open_panel)$/
 
@@ -81,11 +82,13 @@ export const register: Register = on => {
     return started
   })
 
-  // Ask the engine to watch the project file; FileChanged below is the push channel.
+  // Ask the engine to watch .goals/; FileChanged below is the push channel. The
+  // folder, not the file: the engine does not pick up a watched file that does
+  // not exist yet, and a new project creates project.json mid-session.
   on('classic.SessionStart', async ($, e, next) => {
     const answered = await next(e)
-    const file = `${await projectRoot($)}${PROJECT_FILE}`
-    return { ...answered, watchPaths: [...(answered.watchPaths ?? []), file] }
+    const folder = `${await projectRoot($)}${GOALS_DIR}`
+    return { ...answered, watchPaths: [...(answered.watchPaths ?? []), folder] }
   })
 
   on('classic.FileChanged', async ($, e, next) => {

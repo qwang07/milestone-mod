@@ -14,7 +14,8 @@ Use two test projects to verify project isolation.
 
 Claude Code 2.1.332, Linux, `claude -p` with `--plugin-dir` on a built `--host claude` package.
 
-- A hooks module that returns `watchPaths` from classic SessionStart receives classic FileChanged for `.goals/project.json`, both for a direct write and for an atomic rename like `ProjectStore.atomic`.
+- A hooks module that returns `watchPaths` from classic SessionStart receives classic FileChanged for `.goals/project.json`, both for a direct write and for an atomic rename like `ProjectStore.atomic`. Linux and macOS.
+- A watched file that does not exist at session start is never picked up (macOS). Watching the `.goals/` folder works even before the folder exists and reports the file's `add`. Watching the project root is recursive, so it is not used.
 - `read_panel` must be listed to the host: Claude Code hides `visibility: ['app']` tools from `$.mcp.call` too. The Claude Code package starts the server with `--model-read-panel`.
 - The pane command is `/ms-panel`, following the project's `ms-` command prefix (`/milestone` itself is the plugin's skill).
 - With the real server, `list_goals` then `manage_goal(action=create)` in a fresh project left the pane state at `sync: live` showing the new goal.

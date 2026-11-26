@@ -82,10 +82,10 @@ test('the pane shows the current goal and its tasks on every surface', async ($,
   }
 })
 
-test('session start asks the engine to watch the project file', async ($, on) => {
+test('session start asks the engine to watch the goals folder', async ($, on) => {
   engine(on, { finished: false, reads: 0 })
   const answered = await $.classic.SessionStart({ source: 'startup' })
-  expect(answered.watchPaths).toContain(FILE)
+  expect(answered.watchPaths).toContain(`${ROOT}/.goals`)
 })
 
 test('a change to the project file redraws the pane; other files do not read', async ($, on) => {
@@ -97,10 +97,11 @@ test('a change to the project file redraws the pane; other files do not read', a
 
   const before = state.reads
   await $.classic.FileChanged({ file_path: `${ROOT}/README.md`, event: 'change' })
+  await $.classic.FileChanged({ file_path: `${FILE}.0b6e.tmp`, event: 'add' })
   expect(state.reads).toBe(before)
 
   state.finished = true
-  await $.classic.FileChanged({ file_path: FILE, event: 'change' })
+  await $.classic.FileChanged({ file_path: FILE, event: 'add' })
   expect(state.reads).toBe(before + 1)
   expect(await ui.find({ type: 'Text', text: '1 / 2' })).toBeDefined()
   await ui.unmount()

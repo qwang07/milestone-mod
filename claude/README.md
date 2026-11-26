@@ -23,7 +23,7 @@ The plugin bundles the same MCP server and panel data as the Codex and Antigravi
 The pane reads `read_panel` for the session's project root.
 It redraws on events only:
 
-- At session start the hooks module asks Claude Code to watch `.goals/project.json` (`watchPaths` on SessionStart). Every change to that file, from this session, another conversation or another host, arrives as a FileChanged event.
+- At session start the hooks module asks Claude Code to watch the `.goals/` folder (`watchPaths` on SessionStart). Every change to `.goals/project.json`, from this session, another conversation or another host, arrives as a FileChanged event, including the file's creation in a new project.
 - A Milestone tool call in this session redraws as soon as its result is in.
 
 There is no polling. When a read fails the pane shows the reason and a refresh button.
