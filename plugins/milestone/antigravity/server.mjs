@@ -37506,7 +37506,7 @@ var package_default = {
   },
   scripts: {
     verify: "node verify.mjs",
-    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs claude.test.mjs",
     build: "node build.mjs"
   },
   dependencies: {
@@ -37515,13 +37515,13 @@ var package_default = {
     esbuild: "0.28.2",
     zod: "4.6.7"
   },
-  version: "0.4.2"
+  version: "0.5.0"
 };
 
 // codex/server.mjs
 var { values } = parseArgs({
   args: process.argv.slice(2),
-  options: { source: { type: "string" }, scratch: { type: "string" }, project: { type: "string" } }
+  options: { source: { type: "string" }, scratch: { type: "string" }, project: { type: "string" }, "model-read-panel": { type: "boolean" } }
 });
 if (!values.project && Boolean(values.source) !== Boolean(values.scratch)) {
   throw new Error("Use --project, or --source and --scratch for isolated verification");
@@ -37829,7 +37829,7 @@ server.registerTool("read_panel", {
   description: "Read live goal data for the Milestone panel.",
   inputSchema: { project: panelProjectField },
   annotations: { readOnlyHint: true },
-  _meta: { ui: { visibility: ["app"] } }
+  _meta: { ui: { visibility: values["model-read-panel"] ? ["model", "app"] : ["app"] } }
 }, guarded(async ({ project } = {}) => {
   const ctx = await resolveContext(project);
   const after = ctx.changeToken;

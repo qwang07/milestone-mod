@@ -1,0 +1,15 @@
+{
+  "name": "milestone-mod",
+  "owner": {
+    "name": "Quan Wang",
+    "url": "https://github.com/qwang07"
+  },
+  "plugins": [
+    {
+      "name": "milestone",
+      "source": "./plugins/milestone/claude",
+      "version": "0.5.0",
+      "description": "Project plans, deliverables and progress"
+    }
+  ]
+}

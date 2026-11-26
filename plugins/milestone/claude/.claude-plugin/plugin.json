@@ -1,0 +1,10 @@
+{
+  "name": "milestone",
+  "version": "0.5.0",
+  "description": "Project plans, deliverables and progress",
+  "author": {
+    "name": "Quan Wang",
+    "url": "https://github.com/qwang07"
+  },
+  "types": "./types/index.d.ts"
+}

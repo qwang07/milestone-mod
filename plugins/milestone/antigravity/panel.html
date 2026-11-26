@@ -30849,21 +30849,12 @@ var ServerResultSchema2 = union([
   CreateTaskResultSchema2
 ]);
 
-// codex/render.mjs
-function renderPanel(document2, data) {
-  const $2 = (selector) => document2.querySelector(selector);
+// codex/view.mjs
+var LABELS = { idea: "\u5F85\u89C4\u5212", planning: "\u89C4\u5212\u4E2D", planned: "\u5F85\u5F00\u59CB", active: "\u8FDB\u884C\u4E2D", done: "\u5DF2\u5B8C\u6210", dropped: "\u5DF2\u53D6\u6D88" };
+var SECTION_NAMES = { Description: "\u76EE\u6807", Acceptance: "\u76EE\u6807\u9A8C\u6536", Approach: "\u65B9\u6848", Decisions: "\u7EA6\u5B9A" };
+function panelView(data) {
   const projectName = data.projectName || (data.source || data.project || data.scratch || "").split(/[\\/]/).filter(Boolean).at(-1) || "\u9879\u76EE";
-  $2("#project-name").textContent = projectName;
-  document2.title = projectName;
-  const text = (tag, value, className) => {
-    const node2 = document2.createElement(tag);
-    node2.textContent = value;
-    if (className) node2.className = className;
-    return node2;
-  };
-  const expanded = new Map([...document2.querySelectorAll("details[data-key]")].map((d2) => [d2.dataset.key, d2.open]));
   const pool = data.test, run = data.run;
-  const labels = { idea: "\u5F85\u89C4\u5212", planning: "\u89C4\u5212\u4E2D", planned: "\u5F85\u5F00\u59CB", active: "\u8FDB\u884C\u4E2D", done: "\u5DF2\u5B8C\u6210", dropped: "\u5DF2\u53D6\u6D88" };
   const goals = pool.rows?.map((row) => pool.goals.find((g) => g.id === row.id)).filter(Boolean) ?? pool.goals;
   const goal = goals.find((g) => g.status === "active") ?? goals.find((g) => !["done", "dropped"].includes(g.status)) ?? goals.find((g) => g.id === run?.goal);
   function status(g) {
@@ -30877,8 +30868,62 @@ function renderPanel(document2, data) {
       if (pending2.some((t) => run?.updates?.[`${g.id}:${t.n}`]?.status === "blocked")) return "\u53D7\u963B";
       if (pending2.some((t) => run?.updates?.[`${g.id}:${t.n}`]?.status === "paused")) return "\u5DF2\u6682\u505C";
     }
-    return labels[g.status];
+    return LABELS[g.status];
   }
+  function details(g) {
+    const draft = pool.drafts?.[g.id];
+    const lines = (draft ? [["\u5F85\u786E\u8BA4\u65B9\u6848", draft.approach], ["\u76EE\u6807\u9A8C\u6536", draft.acceptance]] : g.sections.map((s) => [SECTION_NAMES[s.heading] ?? s.heading, s.body])).filter(([, v]) => v).map(([k2, v]) => `${k2}\uFF1A${v}`);
+    const goalReceipt = run?.receipts?.findLast((r) => r.goal === g.id && r.task === void 0);
+    if (goalReceipt) lines.push(`\u9A8C\u6536\u7ED3\u679C\uFF1A${goalReceipt.evidence}`);
+    if (draft) lines.push(...draft.tasks.map((t) => `\u5F85\u786E\u8BA4\u4EFB\u52A1\uFF1A${t.title}
+\u9A8C\u6536\uFF1A${t.acceptance}`));
+    return lines;
+  }
+  function tasks(g) {
+    return g.tasks.map((t) => {
+      const assigned = run?.goal === g.id && run?.task === t.n && !["stopped"].includes(run.status);
+      const update = run?.updates?.[`${g.id}:${t.n}`];
+      const state = t.mark === "x" ? "\u5DF2\u5B8C\u6210" : t.mark === "-" ? "\u5DF2\u53D6\u6D88" : assigned && run.status === "blocked" ? "\u53D7\u963B" : assigned && run.status === "paused" ? "\u5DF2\u6682\u505C" : t.mark === "~" ? "\u8FDB\u884C\u4E2D" : update?.status === "blocked" ? "\u53D7\u963B" : update?.status === "paused" ? "\u5DF2\u6682\u505C" : "\u5F85\u5F00\u59CB";
+      const icon = t.mark === "x" ? "\u2713" : t.mark === "-" ? "\u2013" : state === "\u8FDB\u884C\u4E2D" ? "\u25C9" : state === "\u53D7\u963B" ? "!" : "\u2022";
+      const notes = [];
+      const receipt = run?.receipts?.findLast((r) => r.goal === g.id && r.task === t.n);
+      if (receipt) notes.push(receipt.summary, receipt.evidence);
+      if (assigned && run.reason) notes.push(run.reason);
+      else if (update?.reason && t.mark === " ") notes.push(update.reason);
+      return { key: `task:${g.id}:${t.n}`, icon, title: t.title, state, isCurrent: state === "\u8FDB\u884C\u4E2D", isFinished: t.mark === "x" || t.mark === "-", acceptance: `\u9A8C\u6536\uFF1A${t.acceptance}`, notes };
+    });
+  }
+  const goalView = (g) => ({ key: `goal:${g.id}`, id: g.id, title: g.title, state: status(g), details: details(g), tasks: tasks(g) });
+  const completed = goal?.tasks.filter((t) => t.mark === "x").length ?? 0;
+  const reason = goal?.id === run?.goal && ["blocked", "paused"].includes(run?.status) ? run.reason : goal?.tasks.filter((t) => t.mark === " ").map((t) => run?.updates?.[`${goal.id}:${t.n}`]?.reason).find(Boolean) ?? "";
+  const archived = pool.goals.filter((g) => ["done", "dropped"].includes(g.status));
+  const doneCount = archived.filter((g) => g.status === "done").length, droppedCount = archived.filter((g) => g.status === "dropped").length;
+  return {
+    projectName,
+    current: goal ? { ...goalView(goal), label: goal.status === "done" ? "\u5DF2\u5B8C\u6210\u76EE\u6807" : "\u5F53\u524D\u76EE\u6807" } : null,
+    emptyTitle: "\u6682\u65E0\u9879\u76EE\u76EE\u6807",
+    emptyHint: "\u5728\u5BF9\u8BDD\u4E2D\u786E\u5B9A\u9879\u76EE\u76EE\u6807\u548C\u8BA1\u5212",
+    progress: goal?.tasks.length ? { done: completed, total: goal.tasks.length, text: `${completed} / ${goal.tasks.length}` } : null,
+    reason: reason || "",
+    others: goals.filter((g) => g.id !== goal?.id && !["done", "dropped"].includes(g.status)).map(goalView),
+    archive: { summary: `\u5DF2\u5B8C\u6210\u7684\u76EE\u6807  ${doneCount}${droppedCount ? ` \xB7 \u5DF2\u53D6\u6D88 ${droppedCount}` : ""}`, goals: archived.map(goalView) },
+    errors: pool.errors.map((e) => `${e.file}: ${e.reason}`)
+  };
+}
+
+// codex/render.mjs
+function renderPanel(document2, data) {
+  const $2 = (selector) => document2.querySelector(selector);
+  const view = panelView(data);
+  $2("#project-name").textContent = view.projectName;
+  document2.title = view.projectName;
+  const text = (tag, value, className) => {
+    const node2 = document2.createElement(tag);
+    node2.textContent = value;
+    if (className) node2.className = className;
+    return node2;
+  };
+  const expanded = new Map([...document2.querySelectorAll("details[data-key]")].map((d2) => [d2.dataset.key, d2.open]));
   function details(key, summary, body) {
     const d2 = document2.createElement("details");
     d2.dataset.key = key;
@@ -30888,46 +30933,30 @@ function renderPanel(document2, data) {
     d2.append(s, body);
     return d2;
   }
-  function goalBody(g) {
-    const draft = pool.drafts?.[g.id];
-    const lines = (draft ? [["\u5F85\u786E\u8BA4\u65B9\u6848", draft.approach], ["\u76EE\u6807\u9A8C\u6536", draft.acceptance]] : g.sections.map((s) => [{ Description: "\u76EE\u6807", Acceptance: "\u76EE\u6807\u9A8C\u6536", Approach: "\u65B9\u6848", Decisions: "\u7EA6\u5B9A" }[s.heading] ?? s.heading, s.body])).filter(([, v]) => v).map(([k2, v]) => `${k2}\uFF1A${v}`);
-    const goalReceipt = run?.receipts?.findLast((r) => r.goal === g.id && r.task === void 0);
-    if (goalReceipt) lines.push(`\u9A8C\u6536\u7ED3\u679C\uFF1A${goalReceipt.evidence}`);
-    if (draft) lines.push(...draft.tasks.map((t) => `\u5F85\u786E\u8BA4\u4EFB\u52A1\uFF1A${t.title}
-\u9A8C\u6536\uFF1A${t.acceptance}`));
-    return text("div", lines.join("\n\n"), "detail-body");
-  }
+  const goalBody = (g) => text("div", g.details.join("\n\n"), "detail-body");
   function tasks(g) {
     return g.tasks.map((t) => {
-      const assigned = run?.goal === g.id && run?.task === t.n && !["stopped"].includes(run.status);
-      const update = run?.updates?.[`${g.id}:${t.n}`];
-      const state = t.mark === "x" ? "\u5DF2\u5B8C\u6210" : t.mark === "-" ? "\u5DF2\u53D6\u6D88" : assigned && run.status === "blocked" ? "\u53D7\u963B" : assigned && run.status === "paused" ? "\u5DF2\u6682\u505C" : t.mark === "~" ? "\u8FDB\u884C\u4E2D" : update?.status === "blocked" ? "\u53D7\u963B" : update?.status === "paused" ? "\u5DF2\u6682\u505C" : "\u5F85\u5F00\u59CB";
-      const icon = t.mark === "x" ? "\u2713" : t.mark === "-" ? "\u2013" : state === "\u8FDB\u884C\u4E2D" ? "\u25C9" : state === "\u53D7\u963B" ? "!" : "\u2022";
       const row = document2.createElement("li");
-      if (state === "\u8FDB\u884C\u4E2D") row.className = "current";
-      else if (t.mark === "x" || t.mark === "-") row.className = "finished";
-      const body = text("div", `\u9A8C\u6536\uFF1A${t.acceptance}`, "detail-body");
-      const receipt = run?.receipts?.findLast((r) => r.goal === g.id && r.task === t.n);
-      if (receipt) body.append(text("p", receipt.summary), text("p", receipt.evidence));
-      if (assigned && run.reason) body.append(text("p", run.reason));
-      else if (update?.reason && t.mark === " ") body.append(text("p", update.reason));
-      row.append(details(`task:${g.id}:${t.n}`, [text("span", icon, "task-icon"), text("span", t.title, "task-title"), text("span", state, "task-state")], body));
+      if (t.isCurrent) row.className = "current";
+      else if (t.isFinished) row.className = "finished";
+      const body = text("div", t.acceptance, "detail-body");
+      body.append(...t.notes.map((note) => text("p", note)));
+      row.append(details(t.key, [text("span", t.icon, "task-icon"), text("span", t.title, "task-title"), text("span", t.state, "task-state")], body));
       return row;
     });
   }
-  $2("#active").textContent = goal?.title ?? "\u6682\u65E0\u9879\u76EE\u76EE\u6807";
-  $2("#current-label").textContent = goal?.status === "done" ? "\u5DF2\u5B8C\u6210\u76EE\u6807" : "\u5F53\u524D\u76EE\u6807";
-  $2("#acceptance").replaceChildren(...goal ? [...goalBody(goal).childNodes] : [text("p", "\u5728\u5BF9\u8BDD\u4E2D\u786E\u5B9A\u9879\u76EE\u76EE\u6807\u548C\u8BA1\u5212")]);
-  $2("#goal-status").textContent = goal ? status(goal) : "";
-  const completed = goal?.tasks.filter((t) => t.mark === "x").length ?? 0;
-  $2("#progress-text").textContent = goal?.tasks.length ? `${completed} / ${goal.tasks.length}` : "";
-  $2("#progress").hidden = !goal?.tasks.length;
-  $2("#progress").max = goal?.tasks.length || 1;
-  $2("#progress").value = completed;
+  const goal = view.current;
+  $2("#active").textContent = goal?.title ?? view.emptyTitle;
+  $2("#current-label").textContent = goal?.label ?? "\u5F53\u524D\u76EE\u6807";
+  $2("#acceptance").replaceChildren(...goal ? [...goalBody(goal).childNodes] : [text("p", view.emptyHint)]);
+  $2("#goal-status").textContent = goal?.state ?? "";
+  $2("#progress-text").textContent = view.progress?.text ?? "";
+  $2("#progress").hidden = !view.progress;
+  $2("#progress").max = view.progress?.total || 1;
+  $2("#progress").value = view.progress?.done ?? 0;
   $2("#tasks").replaceChildren(...goal ? tasks(goal) : []);
-  const reason = goal?.id === run?.goal && ["blocked", "paused"].includes(run?.status) ? run.reason : goal?.tasks.filter((t) => t.mark === " ").map((t) => run?.updates?.[`${goal.id}:${t.n}`]?.reason).find(Boolean) ?? "";
-  $2("#reason").hidden = !reason;
-  $2("#reason").textContent = reason;
+  $2("#reason").hidden = !view.reason;
+  $2("#reason").textContent = view.reason;
   function goalRow(g) {
     const row = document2.createElement("li");
     row.className = "goal-row";
@@ -30935,17 +30964,15 @@ function renderPanel(document2, data) {
     const list = document2.createElement("ul");
     list.append(...tasks(g));
     body.append(list);
-    row.append(details(`goal:${g.id}`, [text("span", g.title, "goal-title"), text("span", status(g), "task-state")], body));
+    row.append(details(g.key, [text("span", g.title, "goal-title"), text("span", g.state, "task-state")], body));
     return row;
   }
-  const others = goals.filter((g) => g.id !== goal?.id && !["done", "dropped"].includes(g.status));
-  $2("#other-section").hidden = !others.length;
-  $2("#goals").replaceChildren(...others.map(goalRow));
-  const archived = pool.goals.filter((g) => ["done", "dropped"].includes(g.status));
-  $2("#archive").hidden = !archived.length;
-  $2("#archive-count").textContent = `\u5DF2\u5B8C\u6210\u7684\u76EE\u6807  ${archived.filter((g) => g.status === "done").length}${archived.some((g) => g.status === "dropped") ? ` \xB7 \u5DF2\u53D6\u6D88 ${archived.filter((g) => g.status === "dropped").length}` : ""}`;
-  $2("#archived-goals").replaceChildren(...archived.map(goalRow));
-  $2("#errors").textContent = pool.errors.map((e) => `${e.file}: ${e.reason}`).join("\n");
+  $2("#other-section").hidden = !view.others.length;
+  $2("#goals").replaceChildren(...view.others.map(goalRow));
+  $2("#archive").hidden = !view.archive.goals.length;
+  $2("#archive-count").textContent = view.archive.summary;
+  $2("#archived-goals").replaceChildren(...view.archive.goals.map(goalRow));
+  $2("#errors").textContent = view.errors.join("\n");
 }
 
 // codex/package.json
@@ -30958,7 +30985,7 @@ var package_default = {
   },
   scripts: {
     verify: "node verify.mjs",
-    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs",
+    test: "node --test ../tests/model.test.ts workflow.test.mjs events.test.mjs app.test.mjs multiproject.test.mjs claude.test.mjs",
     build: "node build.mjs"
   },
   dependencies: {
@@ -30967,7 +30994,7 @@ var package_default = {
     esbuild: "0.28.2",
     zod: "4.6.7"
   },
-  version: "0.4.2"
+  version: "0.5.0"
 };
 
 // codex/app.mjs
